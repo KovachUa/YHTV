@@ -1,0 +1,14 @@
+.git
+.gitignore
+.dockerignore
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+yhtv_downloads/
+yhtv_pgdata/
+db_data/
+redis_data/

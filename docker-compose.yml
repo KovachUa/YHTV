@@ -1,0 +1,76 @@
+services:
+  frontend:
+    build: ./frontend
+    container_name: yhtv-frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - backend
+    networks:
+      - yhtv-net
+
+  backend:
+    build: ./backend
+    container_name: yhtv-backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - yhtv_downloads:/downloads
+    environment:
+      - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
+      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
+    depends_on:
+      - redis
+      - db
+    networks:
+      - yhtv-net
+
+  worker:
+    build: ./backend
+    container_name: yhtv-worker
+    command: celery -A celery_app worker --loglevel=info --concurrency=4
+    volumes:
+      - yhtv_downloads:/downloads
+    environment:
+      - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
+      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
+    depends_on:
+      - redis
+      - db
+    networks:
+      - yhtv-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: yhtv-redis
+    command: redis-server --requirepass yhtv_secure_pass_2026
+    ports:
+      # Expose Redis locally so external workers can connect if needed.
+      # Protected by the requirepass above!
+      - "127.0.0.1:6379:6379"
+    networks:
+      - yhtv-net
+
+  db:
+    image: postgres:15-alpine
+    container_name: yhtv-db
+    environment:
+      POSTGRES_USER: yhtv
+      POSTGRES_PASSWORD: yhtv_db_pass_2026
+      POSTGRES_DB: yhtv
+    volumes:
+      - yhtv_pgdata:/var/lib/postgresql/data
+    networks:
+      - yhtv-net
+
+networks:
+  yhtv-net:
+    driver: bridge
+
+volumes:
+  yhtv_downloads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./yhtv_downloads
+  yhtv_pgdata:

@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YHTV Media Server</title>
+    <link rel="stylesheet" href="static/css/style.css">
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="static/js/bg.js?v=2027"></script>
+    <script src="static/js/lang.js?v=2027"></script>
+    <script src="static/js/app.js?v=2027"></script>
+</head>
+<body>
+    <!-- Top Navigation -->
+    <header class="top-navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                        <path d="M10 8L16 12L10 16V8Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <h1>YHTV</h1>
+            </div>
+            
+            <nav class="nav-links">
+                <a href="#" class="nav-item active" id="nav-all">Головна</a>
+                <a href="#" class="nav-item" id="nav-channels">Channels</a>
+                <a href="#" class="nav-item" id="nav-queue">Queue <span class="badge">1</span></a>
+                <a href="#" class="nav-item" id="nav-config">Config</a>
+            </nav>
+
+            <div class="nav-actions">
+                <button class="btn btn-secondary" id="lang-toggle" style="padding: 4px 8px; font-size: 12px; margin-right: 10px;">UK</button>
+                <button class="icon-btn" title="Search" id="global-search-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21L16.65 16.65"/></svg>
+                </button>
+                <button class="icon-btn" title="Settings" id="settings-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"/><path d="M19.4 15A1.65 1.65 0 0 0 21 13.35V10.65A1.65 1.65 0 0 0 19.4 9H18.78A6.9 6.9 0 0 0 17.5 7.02L17.94 6.58A1.65 1.65 0 0 0 17.94 4.25L16.03 2.34A1.65 1.65 0 0 0 13.7 2.34L13.26 2.78A6.9 6.9 0 0 0 11.28 2.14H10.65A1.65 1.65 0 0 0 9 3.79V5.19A1.65 1.65 0 0 0 10.65 6.84H11.28A5.4 5.4 0 0 1 13.26 7.48L13.7 7.04A3.15 3.15 0 0 1 15.93 7.04L17.84 8.95A3.15 3.15 0 0 1 17.84 11.18L17.4 11.62A5.4 5.4 0 0 1 18.04 13.6L18.78 13.6A3.15 3.15 0 0 1 21 16.75V19.45A3.15 3.15 0 0 1 18.78 22.6H18.04A6.9 6.9 0 0 1 16.06 23.24L15.62 23.68A1.65 1.65 0 0 1 13.3 23.68L11.39 21.77A1.65 1.65 0 0 1 11.39 19.44L11.83 19A6.9 6.9 0 0 1 9.85 18.36H9.22A1.65 1.65 0 0 1 7.57 16.71V14.01A1.65 1.65 0 0 1 9.22 12.36H9.85A5.4 5.4 0 0 0 11.83 11.72L11.39 12.16A3.15 3.15 0 0 1 9.16 12.16L7.25 10.25A3.15 3.15 0 0 1 7.25 8.02L7.69 7.58A5.4 5.4 0 0 0 7.05 5.6L6.31 5.6A3.15 3.15 0 0 1 4.1 2.45V-0.25A3.15 3.15 0 0 1 6.31 -3.4H7.05A6.9 6.9 0 0 1 9.03 -4.04L9.47 -4.48A1.65 1.65 0 0 1 11.79 -4.48L13.7 -2.57A1.65 1.65 0 0 1 13.7 -0.24L13.26 0.2A6.9 6.9 0 0 1 15.24 0.84H15.87A1.65 1.65 0 0 1 17.52 2.49V5.19A1.65 1.65 0 0 1 15.87 6.84H15.24A5.4 5.4 0 0 0 13.26 7.48L13.7 7.04A3.15 3.15 0 0 1 15.93 7.04L17.84 8.95A3.15 3.15 0 0 1 17.84 11.18L17.4 11.62A5.4 5.4 0 0 0 18.04 13.6L18.78 13.6A3.15 3.15 0 0 1 21 16.75V19.45Z"/></svg>
+                </button>
+                <button class="icon-btn add-btn" id="add-video-btn" title="Add Video">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5V19M5 12H19"/></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div id="all-videos-view">
+            <div class="page-header">
+                <h2>Головна</h2>
+                <div class="header-controls">
+                    <div class="view-toggles">
+                        <select id="video-sort-select" class="btn btn-secondary" style="width: auto; padding: 6px 12px; margin-right: 12px; border: none; outline: none; cursor: pointer;">
+                            <option>Newest first</option>
+                            <option>Oldest first</option>
+                            <option>Longest</option>
+                        </select>
+                        <button class="icon-btn active" title="Grid View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
+                        <button class="icon-btn" title="List View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-container" id="all-videos-container">
+            </div>
+        </div>
+
+        <div id="channels-view" class="hidden">
+            <div class="page-header">
+                <h2>Channels</h2>
+                <div class="header-controls">
+                    <label class="toggle-label">
+                        <span>Show subscribed only:</span>
+                        <div class="toggle-switch">
+                            <input type="checkbox" id="subscribed-toggle">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                    <div class="view-toggles">
+                        <button class="icon-btn active" id="grid-view-btn" title="Grid View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
+                        <button class="icon-btn" id="list-view-btn" title="List View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                    </div>
+                </div>
+            </div>
+
+        <div class="grid-container" id="channels-container">
+        </div>
+        </div>
+
+        <div id="single-channel-view" class="hidden">
+            <div class="channel-header-large">
+                <div class="channel-banner-large" style="background-image: url('https://images.unsplash.com/photo-1506744626753-140285396207?q=80&w=1200&auto=format&fit=crop');"></div>
+                <div class="channel-info-large">
+                    <img src="https://i.pravatar.cc/150?u=tech" alt="Avatar" class="channel-avatar-large">
+                    <div class="channel-details-large">
+                        <h2>Як працює Rust у 2026 році</h2>
+                        <p>154K subscribers</p>
+                    </div>
+                    <button class="btn btn-secondary" id="back-to-channels" style="width: auto;">&larr; Back to Channels</button>
+                    <button class="btn btn-unsubscribe" style="width: auto;">Unsubscribe</button>
+                    <button class="btn btn-danger-outline delete-channel-btn" style="width: auto; display: flex; align-items: center; gap: 8px;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+
+            <h3 class="section-title">Downloaded Videos</h3>
+            <div class="grid-container" id="single-channel-videos-container">
+            </div>
+
+            <h3 class="section-title" style="margin-top: 40px; color: var(--primary-color);">Available on YouTube</h3>
+            <div id="channel-loading-indicator" class="hidden" style="padding: 20px; color: var(--text-secondary); text-align: center;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width: 24px; height: 24px; margin-right: 10px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                Loading latest videos...
+            </div>
+            <div class="grid-container" id="single-channel-available-container">
+            </div>
+        </div>
+
+        <div id="queue-view" class="hidden">
+            <div class="page-header">
+                <h2>Download Queue</h2>
+                <div class="header-controls">
+                    <button class="btn btn-secondary" id="stop-all-btn" style="width: auto;">Stop All</button>
+                    <button class="btn btn-secondary" id="clear-completed-btn" style="width: auto;">Clear Completed</button>
+                    <button class="btn btn-danger-outline" id="clear-all-btn" style="width: auto;">Clear All</button>
+                </div>
+            </div>
+
+            <div class="queue-list" id="queue-list-container">
+            </div>
+        </div>
+
+        <div id="config-view" class="hidden">
+            <div class="page-header">
+                <h2 data-i18n="config-title">Download Configuration</h2>
+                <div class="header-controls">
+                    <button class="btn btn-secondary" id="reset-config-btn" style="width: auto;">Reset to Defaults</button>
+                    <button class="btn btn-primary" id="save-config-btn" style="width: auto;">Save Settings</button>
+                </div>
+            </div>
+
+            <div class="config-container layout-sidebar">
+                <div class="config-sidebar">
+                    <button type="button" class="config-tab active" data-target="config-network">Network & Connection</button>
+                    <button type="button" class="config-tab" data-target="config-download">Download & Retries</button>
+                    <button type="button" class="config-tab" data-target="config-selection">Video Selection</button>
+                    <button type="button" class="config-tab" data-target="config-postprocessing">Post-Processing</button>
+                    <button type="button" class="config-tab" data-target="config-filesystem">File System & Output</button>
+                    <button type="button" class="config-tab" data-target="config-advanced">Advanced</button>
+                </div>
+                
+                <form id="yt-dlp-config-form" class="config-form-tabbed">
+                    
+                    <!-- Tab 1: Network -->
+                    <div id="config-network" class="config-tab-content active">
+                        <div class="config-section">
+                            <h3>Network & Rate Limits</h3>
+                            <div class="form-group">
+                                <label for="limit-rate" title="-r, --limit-rate RATE">Max Download Rate</label>
+                                <input type="text" id="limit-rate" name="limit-rate" placeholder="e.g. 50K, 4.2M">
+                            </div>
+                            <div class="form-group">
+                                <label for="throttled-rate" title="--throttled-rate RATE">Min Rate (restart if below)</label>
+                                <input type="text" id="throttled-rate" name="throttled-rate" placeholder="e.g. 100K">
+                            </div>
+                            <div class="form-group">
+                                <label for="http-chunk-size" title="--http-chunk-size SIZE">HTTP Chunk Size</label>
+                                <input type="text" id="http-chunk-size" name="http-chunk-size" placeholder="e.g. 10485760">
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Proxy & Geo-Restriction</h3>
+                            <div class="form-group">
+                                <label for="proxy" title="--proxy URL">HTTP/HTTPS/SOCKS Proxy</label>
+                                <input type="text" id="proxy" name="proxy" placeholder="e.g. socks5://127.0.0.1:1080">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="geo-bypass" name="geo-bypass">
+                                <label for="geo-bypass" title="--geo-bypass">Bypass geographic restriction</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="geo-bypass-country" title="--geo-bypass-country CODE">Bypass Country (ISO 3166-1)</label>
+                                <input type="text" id="geo-bypass-country" name="geo-bypass-country" placeholder="e.g. US, DE, UA">
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Authentication</h3>
+                            <div class="form-group">
+                                <label for="cookies-from-browser" title="--cookies-from-browser BROWSER">Cookies from Browser</label>
+                                <input type="text" id="cookies-from-browser" name="cookies-from-browser" placeholder="e.g. chrome, firefox, edge">
+                            </div>
+                            <div class="form-group">
+                                <label for="username" title="-u, --username USERNAME">Username</label>
+                                <input type="text" id="username" name="username" placeholder="Login account name">
+                            </div>
+                            <div class="form-group">
+                                <label for="password" title="-p, --password PASSWORD">Password</label>
+                                <input type="password" id="password" name="password" placeholder="Account password">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tab 2: Download -->
+                    <div id="config-download" class="config-tab-content">
+                        <div class="config-section">
+                            <h3>Retries & Fragments</h3>
+                            <div class="form-group">
+                                <label for="retries" title="-R, --retries RETRIES">Global Retries</label>
+                                <input type="text" id="retries" name="retries" placeholder="10 or infinite" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="file-access-retries" title="--file-access-retries RETRIES">File Access Retries</label>
+                                <input type="number" id="file-access-retries" name="file-access-retries" placeholder="3" value="3">
+                            </div>
+                            <div class="form-group">
+                                <label for="fragment-retries" title="--fragment-retries RETRIES">Fragment Retries</label>
+                                <input type="number" id="fragment-retries" name="fragment-retries" placeholder="10" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label for="retry-sleep" title="--retry-sleep EXPR">Retry Sleep (seconds)</label>
+                                <input type="text" id="retry-sleep" name="retry-sleep" placeholder="e.g. 5 or exp=1:20">
+                            </div>
+                            <div class="form-group">
+                                <label for="concurrent-fragments" title="-N, --concurrent-fragments N">Concurrent Fragments</label>
+                                <input type="number" id="concurrent-fragments" name="concurrent-fragments" placeholder="1" min="1">
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Buffer & Storage</h3>
+                            <div class="form-group">
+                                <label for="buffer-size" title="--buffer-size SIZE">Buffer Size</label>
+                                <input type="text" id="buffer-size" name="buffer-size" placeholder="1024">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="resize-buffer" name="resize-buffer" checked>
+                                <label for="resize-buffer" title="--resize-buffer / --no-resize-buffer">Auto-resize Buffer</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="keep-fragments" name="keep-fragments">
+                                <label for="keep-fragments" title="--keep-fragments / --no-keep-fragments">Keep Fragments after Merge</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="xattr-set-filesize" name="xattr-set-filesize">
+                                <label for="xattr-set-filesize" title="--xattr-set-filesize">Set expected filesize in xattr</label>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Playlists & Formats</h3>
+                            <div class="form-group">
+                                <label for="format" title="-f, --format FORMAT">Format Selection</label>
+                                <input type="text" id="format" name="format" placeholder="bestvideo+bestaudio/best">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="lazy-playlist" name="lazy-playlist">
+                                <label for="lazy-playlist" title="--lazy-playlist / --no-lazy-playlist">Process Playlist Lazily</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="playlist-random" name="playlist-random">
+                                <label for="playlist-random" title="--playlist-random">Randomize Playlist Order</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="hls-use-mpegts" name="hls-use-mpegts">
+                                <label for="hls-use-mpegts" title="--hls-use-mpegts / --no-hls-use-mpegts">Use mpegts for HLS</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="skip-unavailable-fragments" name="skip-unavailable-fragments" checked>
+                                <label for="skip-unavailable-fragments" title="--skip-unavailable-fragments / --abort-on-unavailable-fragment">Skip Unavailable Fragments</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Selection -->
+                    <div id="config-selection" class="config-tab-content">
+                        <div class="config-section">
+                            <h3>Video Selection</h3>
+                            <div class="form-group">
+                                <label for="playlist-start" title="--playlist-start NUMBER">Playlist Start</label>
+                                <input type="number" id="playlist-start" name="playlist-start" placeholder="1" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="playlist-end" title="--playlist-end NUMBER">Playlist End</label>
+                                <input type="number" id="playlist-end" name="playlist-end" placeholder="e.g. 10" min="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="match-filter" title="--match-filter FILTER">Match Filter</label>
+                                <input type="text" id="match-filter" name="match-filter" placeholder="e.g. duration > 60 & duration < 3600">
+                            </div>
+                            <div class="form-group">
+                                <label for="dateafter" title="--dateafter DATE">Date After (YYYYMMDD)</label>
+                                <input type="text" id="dateafter" name="dateafter" placeholder="e.g. 20260101">
+                            </div>
+                            <div class="form-group">
+                                <label for="min-filesize" title="--min-filesize SIZE">Min Filesize</label>
+                                <input type="text" id="min-filesize" name="min-filesize" placeholder="e.g. 50M">
+                            </div>
+                            <div class="form-group">
+                                <label for="max-filesize" title="--max-filesize SIZE">Max Filesize</label>
+                                <input type="text" id="max-filesize" name="max-filesize" placeholder="e.g. 2G">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Post-processing -->
+                    <div id="config-postprocessing" class="config-tab-content">
+                        <div class="config-section">
+                            <h3>Post-Processing (Audio & Metadata)</h3>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="extract-audio" name="extract-audio">
+                                <label for="extract-audio" title="-x, --extract-audio">Extract Audio</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="audio-format" title="--audio-format FORMAT">Audio Format</label>
+                                <input type="text" id="audio-format" name="audio-format" placeholder="e.g. best, mp3, m4a, flac">
+                            </div>
+                            <div class="form-group">
+                                <label for="audio-quality" title="--audio-quality QUALITY">Audio Quality (0-9)</label>
+                                <input type="text" id="audio-quality" name="audio-quality" placeholder="e.g. 5 (default)">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="embed-metadata" name="embed-metadata" checked>
+                                <label for="embed-metadata" title="--embed-metadata">Embed Metadata</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="embed-thumbnail" name="embed-thumbnail" checked>
+                                <label for="embed-thumbnail" title="--embed-thumbnail">Embed Thumbnail</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="embed-chapters" name="embed-chapters" checked>
+                                <label for="embed-chapters" title="--embed-chapters">Embed Chapters</label>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>Subtitles</h3>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="write-subs" name="write-subs">
+                                <label for="write-subs" title="--write-subs">Write Subtitles</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="write-auto-subs" name="write-auto-subs">
+                                <label for="write-auto-subs" title="--write-auto-subs">Write Auto Subtitles</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-langs" title="--sub-langs LANGS">Subtitle Languages</label>
+                                <input type="text" id="sub-langs" name="sub-langs" placeholder="e.g. en, uk, all">
+                            </div>
+                            <div class="form-group">
+                                <label for="sub-format" title="--sub-format FORMAT">Subtitle Format</label>
+                                <input type="text" id="sub-format" name="sub-format" placeholder="e.g. best, srt, vtt">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="embed-subs" name="embed-subs">
+                                <label for="embed-subs" title="--embed-subs">Embed Subtitles</label>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <h3>SponsorBlock</h3>
+                            <div class="form-group">
+                                <label for="sponsorblock-remove" title="--sponsorblock-remove CATEGORIES">Remove Sponsor Categories</label>
+                                <input type="text" id="sponsorblock-remove" name="sponsorblock-remove" placeholder="e.g. sponsor, intro, outro">
+                            </div>
+                            <div class="form-group">
+                                <label for="sponsorblock-mark" title="--sponsorblock-mark CATEGORIES">Mark Sponsor Categories (Chapters)</label>
+                                <input type="text" id="sponsorblock-mark" name="sponsorblock-mark" placeholder="e.g. all">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 5: Filesystem -->
+                    <div id="config-filesystem" class="config-tab-content">
+                        <div class="config-section">
+                            <h3>Output & File System</h3>
+                            <div class="form-group">
+                                <label for="output-template" title="-o, --output TEMPLATE">Output Template</label>
+                                <input type="text" id="output-template" name="output-template" placeholder="%(title)s.%(ext)s" value="%(title)s.%(ext)s">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="restrict-filenames" name="restrict-filenames">
+                                <label for="restrict-filenames" title="--restrict-filenames">Restrict Filenames (ASCII)</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="windows-filenames" name="windows-filenames">
+                                <label for="windows-filenames" title="--windows-filenames">Windows Filenames</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="no-mtime" name="no-mtime">
+                                <label for="no-mtime" title="--no-mtime">Do Not Copy File Modification Time</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 6: Advanced -->
+                    <div id="config-advanced" class="config-tab-content">
+                        <div class="config-section">
+                            <h3>Advanced Downloads</h3>
+                            <div class="form-group">
+                                <label for="download-archive" title="--download-archive FILE">Download Archive File</label>
+                                <input type="text" id="download-archive" name="download-archive" placeholder="archive.txt">
+                            </div>
+                            <div class="form-group">
+                                <label for="download-sections" title="--download-sections REGEX">Download Sections (Requires FFmpeg)</label>
+                                <input type="text" id="download-sections" name="download-sections" placeholder="*10:15-15:00">
+                            </div>
+                            <div class="form-group">
+                                <label for="downloader" title="--downloader NAME">External Downloader</label>
+                                <input type="text" id="downloader" name="downloader" placeholder="aria2c, axel">
+                            </div>
+                            <div class="form-group">
+                                <label for="downloader-args" title="--downloader-args ARGS">External Downloader Args</label>
+                                <input type="text" id="downloader-args" name="downloader-args" placeholder="aria2c:-x 16 -s 16">
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="no-download" name="no-download">
+                                <label for="no-download" title="--no-download">No Download (Metadata only)</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="ignore-errors" name="ignore-errors" checked>
+                                <label for="ignore-errors" title="-i, --ignore-errors / --abort-on-error">Ignore Errors (continue on failure)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                </form></div>
+        </div>
+    </main>
+
+    <!-- Modal Window -->
+    <div class="modal-overlay" id="add-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Video or Channel</h2>
+                <button class="icon-btn close-modal" id="cancel-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>URL</label>
+                    <input type="text" placeholder="https://youtube.com/..." class="url-input">
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-wrap: wrap; gap: 10px;">
+                <button class="btn btn-secondary" id="cancel-btn-2">Cancel</button>
+                <button class="btn btn-primary" id="add-channel-only-btn" style="background: var(--bg-surface); border: 1px solid var(--primary-color); color: var(--primary-color);">Add Channel</button>
+                <button class="btn btn-primary" id="add-thumb-btn" style="background: var(--bg-surface); border: 1px solid var(--primary-color); color: var(--primary-color);">Thumb (JPG)</button>
+                <button class="btn btn-primary" id="add-submit-btn">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>Confirm Deletion</h2>
+                <button class="icon-btn close-modal" id="cancel-delete-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this item? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-delete-btn">Cancel</button>
+                <button class="btn" id="confirm-delete-btn" style="background-color: var(--btn-danger); color: white; border: none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player Modal -->
+    <div class="modal-overlay" id="player-modal">
+        <div class="modal-content" style="max-width: 900px; padding: 0; background: #000; overflow: hidden; border-radius: 12px; position: relative;">
+            <button class="icon-btn close-modal" id="close-player-btn" style="position: absolute; top: 10px; right: 10px; z-index: 10; background: rgba(0,0,0,0.5); color: white; border-radius: 50%;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <video id="main-video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" style="width: 100%; max-height: 80vh; outline: none;" data-setup='{"fluid": true}'>
+                <source src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            <div style="padding: 16px; background: var(--bg-surface);">
+                <h3 id="player-title" style="margin-bottom: 8px;">Video Title</h3>
+                <p id="player-meta" style="color: var(--text-secondary); font-size: 0.9em;">YHTV • Local Playback</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
