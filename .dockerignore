@@ -12,3 +12,5 @@ yhtv_downloads/
 yhtv_pgdata/
 db_data/
 redis_data/
+backend/yhtv.db
+*.db

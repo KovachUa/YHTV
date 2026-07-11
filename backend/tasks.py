@@ -102,6 +102,14 @@ def download_video_task(self, url: str, config: dict):
             'format': 'jpg',
         })
         
+    if config.get('write-description'):
+        ydl_opts['writedescription'] = True
+    if config.get('write-comments'):
+        ydl_opts['getcomments'] = True
+        ydl_opts['writeinfojson'] = True  # Required to save comments to disk
+    if config.get('write-info-json'):
+        ydl_opts['writeinfojson'] = True
+        
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             # We must get info to create models
@@ -110,6 +118,21 @@ def download_video_task(self, url: str, config: dict):
             filename = ydl.prepare_filename(info)
             channel_name = info.get('uploader', 'Unknown Channel')
             channel_id = info.get('channel_id', 'unknown_channel_' + str(time.time()))
+            
+            # Manually save description and comments for the frontend, regardless of yt-dlp config
+            try:
+                base_path, _ = os.path.splitext(filename)
+                custom_info_path = base_path + ".info.json"
+                if not os.path.exists(custom_info_path):
+                    import json
+                    to_save = {
+                        "description": info.get("description", ""),
+                        "comments": info.get("comments", [])
+                    }
+                    with open(custom_info_path, "w", encoding="utf-8") as f:
+                        json.dump(to_save, f, ensure_ascii=False)
+            except Exception as e:
+                pass
             
         if db_task:
             db_task.status = 'COMPLETED'
@@ -151,3 +174,37 @@ def download_video_task(self, url: str, config: dict):
         raise Exception(str(e))
     finally:
         db.close()
+
+@celery_app.task(bind=True)
+def refresh_metadata_task(self, url: str, file_path: str):
+    """
+    Celery task that fetches only the metadata (description and comments) for a given URL
+    and updates the .info.json file without downloading the video.
+    """
+    ydl_opts = {
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+        'getcomments': True,
+        'writeinfojson': False, # We'll write it manually to ensure format
+    }
+    
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            
+            if file_path:
+                base_path, _ = os.path.splitext(file_path)
+                custom_info_path = base_path + ".info.json"
+                
+                import json
+                to_save = {
+                    "description": info.get("description", ""),
+                    "comments": info.get("comments", [])
+                }
+                with open(custom_info_path, "w", encoding="utf-8") as f:
+                    json.dump(to_save, f, ensure_ascii=False)
+                    
+        return {'status': 'Completed', 'url': url}
+    except Exception as e:
+        raise Exception(f"Failed to refresh metadata: {str(e)}")

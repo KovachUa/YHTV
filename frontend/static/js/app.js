@@ -94,44 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const addThumbBtn = document.getElementById('add-thumb-btn');
-    if (addThumbBtn) {
-        addThumbBtn.addEventListener('click', async () => {
-            const url = urlInput.value.trim();
-            if (!url) {
-                alert('Please enter a URL');
-                return;
-            }
-            
-            const origText = addThumbBtn.textContent;
-            addThumbBtn.textContent = 'Adding...';
-            addThumbBtn.disabled = true;
-
-            try {
-                const res = await fetch('/api/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url, type: 'thumbnail' })
-                });
-
-                if (res.ok) {
-                    closeModal();
-                    const navQueue = document.getElementById('nav-queue');
-                    if (navQueue) navQueue.click();
-                } else {
-                    const errText = await res.text();
-                    alert('Error adding task: ' + errText);
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Network error');
-            } finally {
-                addThumbBtn.textContent = origText;
-                addThumbBtn.disabled = false;
-            }
-        });
-    }
-
     const addSubmitBtn = document.getElementById('add-submit-btn');
     if (addSubmitBtn) {
         addSubmitBtn.addEventListener('click', async () => {
@@ -234,23 +196,70 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (bannerSrc) {
                     bannerDiv.style.backgroundImage = `url('${bannerSrc}')`;
                 } else {
-                    bannerDiv.style.backgroundImage = `url('https://images.unsplash.com/photo-1506744626753-140285396207?q=80&w=1200&auto=format&fit=crop')`;
+                    bannerDiv.style.backgroundImage = 'none';
+                    bannerDiv.style.backgroundColor = '#333';
                 }
 
                 singleChannelView.querySelector('.channel-avatar-large').src = avatarSrc;
                 singleChannelView.querySelector('.channel-details-large h2').textContent = channelName;
                 
-                let descEl = singleChannelView.querySelector('.channel-details-large .channel-desc');
-                if (!descEl) {
-                    descEl = document.createElement('p');
+                let descContainer = singleChannelView.querySelector('.channel-desc-container');
+                if (!descContainer) {
+                    descContainer = document.createElement('div');
+                    descContainer.className = 'channel-desc-container';
+                    descContainer.style.marginTop = '10px';
+                    descContainer.style.maxWidth = '800px';
+
+                    const descEl = document.createElement('p');
                     descEl.className = 'channel-desc';
                     descEl.style.color = 'var(--text-secondary)';
                     descEl.style.fontSize = '0.9rem';
-                    descEl.style.marginTop = '10px';
-                    descEl.style.maxWidth = '800px';
-                    singleChannelView.querySelector('.channel-details-large').appendChild(descEl);
+                    descEl.style.whiteSpace = 'pre-wrap';
+                    descEl.style.display = '-webkit-box';
+                    descEl.style.webkitLineClamp = '3';
+                    descEl.style.webkitBoxOrient = 'vertical';
+                    descEl.style.overflow = 'hidden';
+
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.style.marginTop = '5px';
+                    toggleBtn.style.padding = '2px 8px';
+                    toggleBtn.style.fontSize = '0.8rem';
+                    toggleBtn.style.backgroundColor = 'transparent';
+                    toggleBtn.style.border = '1px solid var(--border-color)';
+                    toggleBtn.style.color = 'var(--text-primary)';
+                    toggleBtn.style.cursor = 'pointer';
+                    toggleBtn.style.borderRadius = '4px';
+                    toggleBtn.textContent = 'Більше';
+
+                    toggleBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (descEl.style.webkitLineClamp === '3') {
+                            descEl.style.webkitLineClamp = 'unset';
+                            toggleBtn.textContent = 'Менше';
+                        } else {
+                            descEl.style.webkitLineClamp = '3';
+                            toggleBtn.textContent = 'Більше';
+                        }
+                    };
+
+                    descContainer.appendChild(descEl);
+                    descContainer.appendChild(toggleBtn);
+                    singleChannelView.querySelector('.channel-details-large').appendChild(descContainer);
                 }
-                descEl.textContent = desc ? (desc.length > 200 ? desc.substring(0, 200) + '...' : desc) : 'No description available.';
+
+                const descP = descContainer.querySelector('.channel-desc');
+                const tBtn = descContainer.querySelector('button');
+                descP.textContent = desc || 'Немає опису.';
+                descP.style.webkitLineClamp = '3';
+                tBtn.textContent = 'Більше';
+
+                setTimeout(() => {
+                    if (descP.scrollHeight > descP.clientHeight) {
+                        tBtn.style.display = 'inline-block';
+                    } else {
+                        tBtn.style.display = 'none';
+                    }
+                }, 10);
 
                 channelsView.classList.add('hidden');
                 singleChannelView.classList.remove('hidden');
@@ -310,8 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     <p class="video-meta">${v.view_count ? v.view_count.toLocaleString() + ' views' : ''}</p>
                                                 </div>
                                                 <div style="padding: 10px; display: flex; gap: 5px;">
-                                                    <button class="btn btn-primary download-available-btn" data-url="${v.url}" style="flex: 1; border-radius: 4px; padding: 6px;">Video</button>
-                                                    <button class="btn btn-secondary download-available-thumb-btn" data-url="${v.url}" style="flex: 1; border-radius: 4px; padding: 6px;">Thumb</button>
+                                                    <button class="btn btn-primary download-available-btn" data-url="${v.url}" style="flex: 1; border-radius: 4px; padding: 6px;">Завантажити</button>
                                                 </div>
                                             </div>`;
                                         }).join('');
@@ -339,23 +347,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Логіка для кнопок підписки / відписки
     document.addEventListener('click', async (e) => {
-        // Download available video or thumbnail
-        if (e.target.closest('.download-available-btn') || e.target.closest('.download-available-thumb-btn')) {
-            const btn = e.target.closest('.download-available-btn') || e.target.closest('.download-available-thumb-btn');
-            const isThumb = btn.classList.contains('download-available-thumb-btn');
+        // Download all available videos from channel
+        if (e.target.closest('#download-all-channel-btn')) {
+            const btn = e.target.closest('#download-all-channel-btn');
+            const availableBtns = document.querySelectorAll('#single-channel-available-container .download-available-btn:not([disabled])');
+            
+            if (availableBtns.length > 0) {
+                const currentLang = localStorage.getItem('yhtvLang') || 'en';
+                const origText = btn.textContent;
+                btn.textContent = currentLang === 'uk' ? 'Додаються...' : 'Queuing...';
+                btn.disabled = true;
+                
+                (async () => {
+                    for (const vBtn of availableBtns) {
+                        vBtn.click();
+                        await new Promise(r => setTimeout(r, 100)); // Stagger requests slightly
+                    }
+                    btn.textContent = currentLang === 'uk' ? 'Додано' : 'Done';
+                    setTimeout(() => {
+                        btn.textContent = origText;
+                        btn.disabled = false;
+                    }, 3000);
+                })();
+            }
+        }
+
+        // Download available video
+        if (e.target.closest('.download-available-btn')) {
+            const btn = e.target.closest('.download-available-btn');
             const url = btn.dataset.url;
             if (url) {
+                const currentLang = localStorage.getItem('yhtvLang') || 'en';
                 const origText = btn.textContent;
-                btn.textContent = 'Queuing...';
+                btn.textContent = currentLang === 'uk' ? 'Додається...' : 'Queuing...';
                 btn.disabled = true;
                 try {
                     const res = await fetch('/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, type: isThumb ? 'thumbnail' : 'video' })
+                        body: JSON.stringify({ url, type: 'video' })
                     });
                     if (res.ok) {
-                        btn.textContent = 'Queued';
+                        btn.textContent = currentLang === 'uk' ? 'В черзі' : 'Queued';
                         btn.style.background = 'var(--bg-surface)';
                         btn.style.color = 'var(--text-secondary)';
                         btn.style.border = '1px solid var(--border-color)';
@@ -518,16 +551,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => {
         // Close Video Player Modal
         const closePlayerBtn = e.target.closest('#close-player-btn');
-        if (closePlayerBtn) {
+        const isPlayerOverlayClick = e.target.id === 'player-modal';
+        if (closePlayerBtn || isPlayerOverlayClick) {
             const playerModal = document.getElementById('player-modal');
             const mainVideoPlayer = document.getElementById('main-video-player');
             if(playerModal) playerModal.classList.remove('active');
             if(mainVideoPlayer) {
-                if (window.videojs) {
-                    videojs('main-video-player').pause();
-                } else {
-                    mainVideoPlayer.pause();
+                if (window.currentVideoPath) {
+                    localStorage.setItem('vid_pos_' + window.currentVideoPath, mainVideoPlayer.currentTime);
                 }
+                mainVideoPlayer.pause();
             }
             return;
         }
@@ -541,18 +574,72 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerTitle = document.getElementById('player-title');
             
             if (playerModal && mainVideoPlayer && titleEl) {
+                const filePath = videoCard.getAttribute('data-file-path');
+                if (!filePath) return;
+
                 playerTitle.textContent = titleEl.textContent;
                 
-                const filePath = videoCard.getAttribute('data-file-path');
-                if (filePath && window.videojs) {
-                    let type = 'video/mp4';
-                    if (filePath.toLowerCase().endsWith('.webm')) type = 'video/webm';
-                    else if (filePath.toLowerCase().endsWith('.mkv')) type = 'video/x-matroska';
+                let type = 'video/mp4';
+                if (filePath.toLowerCase().endsWith('.webm')) type = 'video/webm';
+                else if (filePath.toLowerCase().endsWith('.mkv')) type = 'video/x-matroska';
+                
+                const isSameVideo = window.currentVideoPath === filePath;
+                window.currentVideoPath = filePath;
+                
+                if (!isSameVideo) {
+                    mainVideoPlayer.innerHTML = `<source src="${filePath}" type="${type}">Your browser does not support the video tag.`;
+                    mainVideoPlayer.load();
                     
-                    const player = videojs('main-video-player');
-                    // Ensure the URL matches our nginx route for downloads
-                    player.src({ src: filePath, type: type });
-                    player.play();
+                    const savedPos = localStorage.getItem('vid_pos_' + filePath);
+                    const timeToSet = savedPos ? parseFloat(savedPos) : 0;
+                    
+                    mainVideoPlayer.onloadedmetadata = function() {
+                        mainVideoPlayer.currentTime = timeToSet;
+                    };
+                }
+                
+                setTimeout(() => mainVideoPlayer.play(), 150);
+                
+                const videoId = videoCard.dataset.videoId || videoCard.dataset.taskId; // fallback for queue items
+                
+                const refreshBtn = document.getElementById('refresh-meta-btn');
+                if (refreshBtn) {
+                    refreshBtn.dataset.videoId = videoId;
+                    refreshBtn.disabled = !videoId;
+                    refreshBtn.textContent = 'Refresh Metadata';
+                }
+                
+                const descEl = document.getElementById('player-desc-content');
+                const commEl = document.getElementById('player-comments-content');
+                if (descEl) descEl.textContent = 'Loading description...';
+                if (commEl) commEl.textContent = 'Loading comments...';
+                
+                if (videoId) {
+                    fetch('/api/videos/' + videoId + '/metadata')
+                        .then(r => r.json())
+                        .then(data => {
+                            if (descEl) descEl.textContent = data.description || 'No description available.';
+                            if (commEl) {
+                                if (data.comments && data.comments.length > 0) {
+                                    commEl.innerHTML = data.comments.map(c => `
+                                        <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                                            <strong>${c.author || 'Unknown'}</strong> 
+                                            <span style="color: var(--text-secondary); font-size: 0.8em; margin-left: 8px;">${c.time_text || ''}</span>
+                                            <div style="margin-top: 4px;">${c.text || ''}</div>
+                                        </div>
+                                    `).join('');
+                                } else {
+                                    commEl.textContent = 'No comments available.';
+                                }
+                            }
+                        })
+                        .catch(err => {
+                            if (descEl) descEl.textContent = 'Error loading metadata.';
+                            if (commEl) commEl.textContent = 'Error loading metadata.';
+                        });
+                } else {
+                    if (descEl) descEl.textContent = 'Metadata not available for this item.';
+                    if (commEl) commEl.textContent = 'Metadata not available for this item.';
                 }
                 
                 playerModal.classList.add('active');
@@ -565,6 +652,54 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             itemToDelete = document.getElementById('single-channel-view');
             if (deleteModal) deleteModal.classList.add('active');
+            return;
+        }
+
+        const refreshMetaBtn = e.target.closest('#refresh-meta-btn');
+        if (refreshMetaBtn && refreshMetaBtn.dataset.videoId) {
+            e.stopPropagation();
+            const vId = refreshMetaBtn.dataset.videoId;
+            refreshMetaBtn.disabled = true;
+            refreshMetaBtn.textContent = 'Refreshing...';
+            fetch('/api/videos/' + vId + '/refresh-metadata', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    refreshMetaBtn.textContent = 'Завантаження (до 10с)...';
+                    
+                    setTimeout(() => {
+                        fetch('/api/videos/' + vId + '/metadata')
+                            .then(r => r.json())
+                            .then(metaData => {
+                                refreshMetaBtn.textContent = 'Оновлено!';
+                                setTimeout(() => {
+                                    refreshMetaBtn.disabled = false;
+                                    refreshMetaBtn.textContent = 'Refresh Metadata';
+                                }, 3000);
+                                
+                                const descEl = document.getElementById('player-desc-content');
+                                const commEl = document.getElementById('player-comments-content');
+                                if (descEl) descEl.textContent = metaData.description || 'No description available.';
+                                if (commEl) {
+                                    if (metaData.comments && metaData.comments.length > 0) {
+                                        commEl.innerHTML = metaData.comments.map(c => `
+                                            <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+                                                <strong>${c.author || 'Unknown'}</strong> 
+                                                <span style="color: var(--text-secondary); font-size: 0.8em; margin-left: 8px;">${c.time_text || ''}</span>
+                                                <div style="margin-top: 4px;">${c.text || ''}</div>
+                                            </div>
+                                        `).join('');
+                                    } else {
+                                        commEl.textContent = 'Немає коментарів.';
+                                    }
+                                }
+                            });
+                    }, 6000);
+                })
+                .catch(err => {
+                    alert('Error starting refresh');
+                    refreshMetaBtn.disabled = false;
+                    refreshMetaBtn.textContent = 'Refresh Metadata';
+                });
             return;
         }
 
@@ -768,7 +903,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Ініціалізація першої вкладки
+    // Навігація по вкладках каналу (з підтримкою декількох контейнерів вкладок)
+    document.addEventListener('click', (e) => {
+        const tab = e.target.closest('.channel-tab');
+        if (tab) {
+            const container = tab.closest('.channel-tabs').parentElement;
+            const targetId = tab.getAttribute('data-target');
+            
+            const siblingTabs = container.querySelectorAll('.channel-tab');
+            const siblingContents = container.querySelectorAll('.channel-tab-content');
+            
+            siblingTabs.forEach(t => t.classList.remove('active'));
+            siblingContents.forEach(c => {
+                c.classList.remove('active');
+                c.classList.add('hidden');
+            });
+            
+            tab.classList.add('active');
+            const targetContent = document.getElementById(targetId);
+            if (targetContent) {
+                targetContent.classList.add('active');
+                targetContent.classList.remove('hidden');
+            }
+        }
+    });
+
+    // Ініціалізація першої вкладки каналу
+    const firstChannelTab = document.querySelector('.channel-tab.active');
+    if (firstChannelTab) firstChannelTab.click();
+
+    // Ініціалізація першої вкладки конфігурації
     const firstTab = document.querySelector('.config-tab.active');
     if (firstTab) firstTab.click();
 });
@@ -912,6 +1076,69 @@ document.addEventListener('DOMContentLoaded', () => {
     if (saveConfigBtn) saveConfigBtn.addEventListener('click', saveConfig);
     if (resetConfigBtn) resetConfigBtn.addEventListener('click', resetConfig);
 
+    // Profiles
+    const profiles = {
+        'max': {
+            'format': 'bestvideo+bestaudio/best',
+            'extract-audio': false,
+            'write-description': true,
+            'write-info-json': true,
+            'write-comments': true,
+            'embed-subs': true,
+            'embed-thumbnail': true,
+            'embed-chapters': true
+        },
+        'optimal': {
+            'format': 'bestvideo[height<=1080]+bestaudio/best',
+            'extract-audio': false,
+            'write-description': false,
+            'write-info-json': false,
+            'write-comments': false,
+            'embed-subs': false,
+            'embed-thumbnail': false,
+            'embed-chapters': false
+        },
+        'fast': {
+            'format': 'bestvideo[height<=720]+bestaudio/best',
+            'extract-audio': false,
+            'write-description': false,
+            'write-info-json': false,
+            'write-comments': false,
+            'embed-subs': false,
+            'embed-thumbnail': false,
+            'embed-chapters': false
+        },
+        'audio': {
+            'extract-audio': true,
+            'audio-format': 'mp3',
+            'audio-quality': '0',
+            'format': 'bestaudio/best',
+            'embed-thumbnail': true
+        }
+    };
+
+    document.querySelectorAll('.profile-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const profileKey = e.target.dataset.profile;
+            const changes = profiles[profileKey];
+            if (!changes) return;
+            
+            for (const [k, v] of Object.entries(changes)) {
+                const el = configForm.elements[k];
+                if (el) {
+                    if (el.type === 'checkbox') el.checked = v;
+                    else el.value = v;
+                }
+            }
+            
+            const origText = e.target.textContent;
+            e.target.textContent = 'Застосовано!';
+            setTimeout(() => e.target.textContent = origText, 1500);
+            
+            await saveConfig();
+        });
+    });
+
     // Call loadConfig initially
     loadConfig();
 
@@ -997,7 +1224,7 @@ async function fetchChannels() {
                     <div class="card-banner" style="${c.banner ? 'background-image: url('+c.banner+')' : 'background-color: #333;'}"></div>
                     <div class="card-content">
                         <div class="card-avatar">
-                            <img src="${c.avatar || 'https://i.pravatar.cc/150?u='+c.id}" alt="Avatar">
+                            <img src="${c.avatar || 'data:image/svg+xml;utf8,<svg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'150\\\' height=\\\'150\\\'><rect width=\\\'150\\\' height=\\\'150\\\' fill=\\\'%23555\\\'/></svg>'}" alt="Avatar">
                         </div>
                         <div class="card-info">
                             <h3 class="card-title">${c.name}</h3>
@@ -1021,11 +1248,12 @@ async function fetchQueue() {
             tasks = tasks.filter(t => !window.localQueueState.deleted.has(t.task_id));
         }
 
-        // Update badge count
+        // Update badge count (only count active tasks)
         const badge = document.querySelector('#nav-queue .badge');
         if (badge) {
-            badge.textContent = tasks.length;
-            badge.style.display = tasks.length > 0 ? 'inline-block' : 'none';
+            const activeTasksCount = tasks.filter(t => ['QUEUED', 'DOWNLOADING', 'PROGRESS'].includes(t.status)).length;
+            badge.textContent = activeTasksCount;
+            badge.style.display = activeTasksCount > 0 ? 'inline-block' : 'none';
         }
 
         const container = document.getElementById('queue-list-container');
@@ -1033,20 +1261,36 @@ async function fetchQueue() {
             container.innerHTML = tasks.map(t => {
                 let statusClass = 'queued';
                 let icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>';
-                let metaText = t.status;
+                let metaText = 'Waiting in queue...';
                 let isPaused = window.localQueueState && window.localQueueState.paused.has(t.task_id);
                 
                 if(t.status === 'DOWNLOADING') {
                     statusClass = 'downloading';
                     icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>';
-                    metaText = `Downloading... ${t.progress.toFixed(1)}% (${t.speed || 'N/A'}) - ETA ${t.eta || 'N/A'}`;
+                    let prog = (t.progress || 0).toFixed(1);
+                    metaText = `Downloading... ${prog}% (${t.speed || 'N/A'}) - ETA ${t.eta || 'N/A'}`;
                 } else if(t.status === 'COMPLETED') {
                     statusClass = 'completed';
                     icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+                    metaText = `Completed - ${t.title || ''}`;
                 } else if(t.status === 'ERROR') {
                     statusClass = 'error';
                     icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
-                    metaText = `Error: ${t.error_message}`;
+                    metaText = `Error: ${t.error_message || 'Unknown'}`;
+                }
+
+                const currentLang = localStorage.getItem('yhtvLang') || 'en';
+                if (currentLang === 'uk' && typeof translations !== 'undefined') {
+                    if (t.status === 'DOWNLOADING') {
+                        let prog = (t.progress || 0).toFixed(1);
+                        metaText = `${translations['Downloading...']} ${prog}% (${t.speed || 'N/A'}) - ETA ${t.eta || 'N/A'}`;
+                    } else if (t.status === 'COMPLETED') {
+                        metaText = `${translations['Completed - ']}${t.title || ''}`;
+                    } else if (t.status === 'ERROR') {
+                        metaText = `${translations['Error:']} ${t.error_message || 'Unknown'}`;
+                    } else if (t.status === 'QUEUED') {
+                        metaText = translations['Waiting in queue...'];
+                    }
                 }
 
                 let actionBtns = '';
@@ -1093,12 +1337,10 @@ document.getElementById('global-search-btn')?.addEventListener('click', () => {
     }
 });
 
-// Periodically fetch queue if queue tab is active
+// Periodically fetch queue to update badge and list
 setInterval(() => {
-    if(document.getElementById('nav-queue')?.classList.contains('active')) {
-        fetchQueue();
-    }
-}, 2000);
+    fetchQueue();
+}, 3000);
 
 // Initial fetch on load
 setTimeout(() => {
@@ -1107,3 +1349,57 @@ setTimeout(() => {
     if(activeTab?.id === 'nav-channels') fetchChannels();
     if(activeTab?.id === 'nav-queue') fetchQueue();
 }, 500);
+
+// Global keyboard controls for video player in modal
+document.addEventListener('keydown', (e) => {
+    const playerModal = document.getElementById('player-modal');
+    if (playerModal && playerModal.classList.contains('active')) {
+        const videoPlayer = document.getElementById('video-player');
+        if (videoPlayer && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+            switch(e.key.toLowerCase()) {
+                case 'arrowright':
+                    e.preventDefault();
+                    videoPlayer.currentTime += 5;
+                    break;
+                case 'arrowleft':
+                    e.preventDefault();
+                    videoPlayer.currentTime -= 5;
+                    break;
+                case 'l':
+                    e.preventDefault();
+                    videoPlayer.currentTime += 10;
+                    break;
+                case 'j':
+                    e.preventDefault();
+                    videoPlayer.currentTime -= 10;
+                    break;
+                case 'k':
+                case ' ':
+                    e.preventDefault();
+                    if (videoPlayer.paused) videoPlayer.play();
+                    else videoPlayer.pause();
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    } else {
+                        videoPlayer.requestFullscreen().catch(err => console.error(err));
+                    }
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    videoPlayer.muted = !videoPlayer.muted;
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    videoPlayer.volume = Math.min(1, videoPlayer.volume + 0.05);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    videoPlayer.volume = Math.max(0, videoPlayer.volume - 0.05);
+                    break;
+            }
+        }
+    }
+});

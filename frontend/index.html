@@ -4,12 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YHTV Media Server</title>
-    <link rel="stylesheet" href="static/css/style.css">
-    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
-    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
-    <script src="static/js/bg.js?v=2027"></script>
-    <script src="static/js/lang.js?v=2027"></script>
-    <script src="static/js/app.js?v=2027"></script>
+    <link rel="stylesheet" href="static/css/style.css?v=2036">
+    <script src="static/js/bg.js?v=2034" defer></script>
+    <script src="static/js/lang.js?v=2034" defer></script>
+    <script src="static/js/app.js?v=2042" defer></script>
 </head>
 <body>
     <!-- Top Navigation -->
@@ -28,7 +26,7 @@
             <nav class="nav-links">
                 <a href="#" class="nav-item active" id="nav-all">Головна</a>
                 <a href="#" class="nav-item" id="nav-channels">Channels</a>
-                <a href="#" class="nav-item" id="nav-queue">Queue <span class="badge">1</span></a>
+                <a href="#" class="nav-item" id="nav-queue">Queue <span class="badge" style="display: none;">0</span></a>
                 <a href="#" class="nav-item" id="nav-config">Config</a>
             </nav>
 
@@ -55,9 +53,9 @@
                 <div class="header-controls">
                     <div class="view-toggles">
                         <select id="video-sort-select" class="btn btn-secondary" style="width: auto; padding: 6px 12px; margin-right: 12px; border: none; outline: none; cursor: pointer;">
-                            <option>Newest first</option>
-                            <option>Oldest first</option>
-                            <option>Longest</option>
+                            <option value="Newest first">Newest first</option>
+                            <option value="Oldest first">Oldest first</option>
+                            <option value="Longest">Longest</option>
                         </select>
                         <button class="icon-btn active" title="Grid View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
                         <button class="icon-btn" title="List View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
@@ -93,9 +91,9 @@
 
         <div id="single-channel-view" class="hidden">
             <div class="channel-header-large">
-                <div class="channel-banner-large" style="background-image: url('https://images.unsplash.com/photo-1506744626753-140285396207?q=80&w=1200&auto=format&fit=crop');"></div>
+                <div class="channel-banner-large" style="background-color: #333;"></div>
                 <div class="channel-info-large">
-                    <img src="https://i.pravatar.cc/150?u=tech" alt="Avatar" class="channel-avatar-large">
+                    <div class="channel-avatar-large" style="background-color: #555; display:flex; align-items:center; justify-content:center; color:#fff; font-size:24px;">YH</div>
                     <div class="channel-details-large">
                         <h2>Як працює Rust у 2026 році</h2>
                         <p>154K subscribers</p>
@@ -109,16 +107,26 @@
                 </div>
             </div>
 
-            <h3 class="section-title">Downloaded Videos</h3>
-            <div class="grid-container" id="single-channel-videos-container">
+            <div class="channel-tabs">
+                <button class="channel-tab active" data-target="tab-downloaded">Downloaded Videos</button>
+                <button class="channel-tab" data-target="tab-available">Available on YouTube</button>
             </div>
 
-            <h3 class="section-title" style="margin-top: 40px; color: var(--primary-color);">Available on YouTube</h3>
-            <div id="channel-loading-indicator" class="hidden" style="padding: 20px; color: var(--text-secondary); text-align: center;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width: 24px; height: 24px; margin-right: 10px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-                Loading latest videos...
+            <div id="tab-downloaded" class="channel-tab-content active">
+                <div class="grid-container" id="single-channel-videos-container">
+                </div>
             </div>
-            <div class="grid-container" id="single-channel-available-container">
+
+            <div id="tab-available" class="channel-tab-content hidden">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+                    <button class="btn btn-primary" id="download-all-channel-btn" style="width: auto;">Download All</button>
+                </div>
+                <div id="channel-loading-indicator" class="hidden" style="padding: 20px; color: var(--text-secondary); text-align: center;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width: 24px; height: 24px; margin-right: 10px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                    Loading latest videos...
+                </div>
+                <div class="grid-container" id="single-channel-available-container">
+                </div>
             </div>
         </div>
 
@@ -143,6 +151,14 @@
                     <button class="btn btn-secondary" id="reset-config-btn" style="width: auto;">Reset to Defaults</button>
                     <button class="btn btn-primary" id="save-config-btn" style="width: auto;">Save Settings</button>
                 </div>
+            </div>
+
+            <div class="profiles-container" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
+                <strong style="display: flex; align-items: center; margin-right: 10px; color: var(--text-primary);">Профілі:</strong>
+                <button type="button" class="btn btn-secondary profile-btn" data-profile="max">Максимальна якість</button>
+                <button type="button" class="btn btn-secondary profile-btn" data-profile="optimal">Оптимальна якість</button>
+                <button type="button" class="btn btn-secondary profile-btn" data-profile="fast">Швидке завантаження</button>
+                <button type="button" class="btn btn-secondary profile-btn" data-profile="audio">Тільки аудіо</button>
             </div>
 
             <div class="config-container layout-sidebar">
@@ -338,6 +354,18 @@
                                 <input type="checkbox" id="embed-chapters" name="embed-chapters" checked>
                                 <label for="embed-chapters" title="--embed-chapters">Embed Chapters</label>
                             </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="write-description" name="write-description">
+                                <label for="write-description" title="--write-description">Write Description</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="write-comments" name="write-comments">
+                                <label for="write-comments" title="--write-comments">Write Comments</label>
+                            </div>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="write-info-json" name="write-info-json">
+                                <label for="write-info-json" title="--write-info-json">Write Info JSON</label>
+                            </div>
                         </div>
 
                         <div class="config-section">
@@ -453,7 +481,6 @@
             <div class="modal-footer" style="flex-wrap: wrap; gap: 10px;">
                 <button class="btn btn-secondary" id="cancel-btn-2">Cancel</button>
                 <button class="btn btn-primary" id="add-channel-only-btn" style="background: var(--bg-surface); border: 1px solid var(--primary-color); color: var(--primary-color);">Add Channel</button>
-                <button class="btn btn-primary" id="add-thumb-btn" style="background: var(--bg-surface); border: 1px solid var(--primary-color); color: var(--primary-color);">Thumb (JPG)</button>
                 <button class="btn btn-primary" id="add-submit-btn">Download</button>
             </div>
         </div>
@@ -484,13 +511,23 @@
             <button class="icon-btn close-modal" id="close-player-btn" style="position: absolute; top: 10px; right: 10px; z-index: 10; background: rgba(0,0,0,0.5); color: white; border-radius: 50%;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
-            <video id="main-video-player" class="video-js vjs-default-skin vjs-big-play-centered" controls preload="auto" style="width: 100%; max-height: 80vh; outline: none;" data-setup='{"fluid": true}'>
+            <video id="main-video-player" controls preload="auto" style="width: 100%; max-height: 80vh; outline: none; border-radius: 12px 12px 0 0;">
                 <source src="" type="video/mp4">
                 Your browser does not support the video tag.
             </video>
-            <div style="padding: 16px; background: var(--bg-surface);">
+            <div style="padding: 16px; background: var(--bg-card); border-radius: 0 0 12px 12px;">
                 <h3 id="player-title" style="margin-bottom: 8px;">Video Title</h3>
-                <p id="player-meta" style="color: var(--text-secondary); font-size: 0.9em;">YHTV • Local Playback</p>
+                <p id="player-meta" style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 16px; display: inline-block;">YHTV • Local Playback</p>
+                <button id="refresh-meta-btn" class="btn btn-primary" style="float: right; padding: 4px 10px; font-size: 0.8em; margin-top: -4px;">Refresh Metadata</button>
+                
+                <div class="channel-tabs" style="margin-bottom: 16px; margin-top: 20px;">
+                    <button class="channel-tab active" data-target="player-desc-content" style="padding: 8px 12px; font-size: 14px;">Description</button>
+                    <button class="channel-tab" data-target="player-comments-content" style="padding: 8px 12px; font-size: 14px;">Comments</button>
+                </div>
+                
+                <div id="player-desc-content" class="channel-tab-content active" style="white-space: pre-wrap; font-size: 14px; color: var(--text-primary); max-height: 250px; overflow-y: auto; padding-right: 10px;">Loading description...</div>
+                
+                <div id="player-comments-content" class="channel-tab-content hidden" style="max-height: 250px; overflow-y: auto; font-size: 14px; color: var(--text-primary); padding-right: 10px;">Loading comments...</div>
             </div>
         </div>
     </div>

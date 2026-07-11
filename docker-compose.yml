@@ -19,8 +19,10 @@ services:
       - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
       - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     networks:
       - yhtv-net
 
@@ -34,8 +36,10 @@ services:
       - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
       - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
     depends_on:
-      - redis
-      - db
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
     networks:
       - yhtv-net
 
@@ -47,11 +51,16 @@ services:
       # Expose Redis locally so external workers can connect if needed.
       # Protected by the requirepass above!
       - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "yhtv_secure_pass_2026", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - yhtv-net
 
   db:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: yhtv-db
     environment:
       POSTGRES_USER: yhtv
@@ -59,6 +68,11 @@ services:
       POSTGRES_DB: yhtv
     volumes:
       - yhtv_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yhtv -d yhtv"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - yhtv-net
 

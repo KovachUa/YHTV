@@ -18,6 +18,7 @@ const translations = {
     "Clear Completed": "Очистити завершені",
     "Clear All": "Очистити все",
     "Download": "Завантажити",
+    "Download All": "Завантажити всі",
     "Cancel": "Скасувати",
     "Delete": "Видалити",
     "Subscribe": "Підписатися",

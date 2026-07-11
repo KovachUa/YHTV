@@ -15,12 +15,13 @@ app = FastAPI(title="YHTV Media Server")
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
 DOWNLOADS_DIR = os.environ.get("DOWNLOADS_DIR", "/downloads")
 if not os.path.exists(DOWNLOADS_DIR):
     os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 app.mount("/downloads", StaticFiles(directory=DOWNLOADS_DIR), name="downloads")
+
+CONFIG_FILE = os.path.join(DOWNLOADS_DIR, "config.json")
 
 # Default yt-dlp configuration (ТЗ defaults)
 DEFAULT_CONFIG = {
@@ -42,6 +43,7 @@ DEFAULT_CONFIG = {
     "restrict-filenames": False, "windows-filenames": False,
     "trim-filenames": "", "no-overwrites": True, "continue": True,
     "write-description": False, "write-info-json": False,
+    "write-comments": False,
     "sponsorblock-remove": "", "sponsorblock-mark": ""
 }
 
@@ -80,7 +82,7 @@ async def get_default_config():
     return DEFAULT_CONFIG
 
 from pydantic import BaseModel
-from tasks import download_video_task
+from tasks import download_video_task, refresh_metadata_task
 
 class DownloadRequest(BaseModel):
     url: str
@@ -175,6 +177,47 @@ async def get_queue(db: Session = Depends(get_db)):
 async def get_videos(db: Session = Depends(get_db)):
     videos = db.query(Video).order_by(Video.downloaded_at.desc()).all()
     return videos
+
+@app.get("/api/videos/{video_id}/metadata")
+async def get_video_metadata(video_id: str, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video or not video.file_path:
+        return {"description": "", "comments": []}
+    
+    base_path, _ = os.path.splitext(video.file_path)
+    info_path = base_path + ".info.json"
+    desc_path = base_path + ".description"
+    
+    description = ""
+    comments = []
+    
+    if os.path.exists(desc_path):
+        try:
+            with open(desc_path, "r", encoding="utf-8") as f:
+                description = f.read()
+        except: pass
+        
+    if os.path.exists(info_path):
+        try:
+            with open(info_path, "r", encoding="utf-8") as f:
+                info = json.load(f)
+                if not description:
+                    description = info.get("description", "")
+                comments = info.get("comments", [])
+        except: pass
+        
+    return {"description": description, "comments": comments}
+
+@app.post("/api/videos/{video_id}/refresh-metadata")
+async def refresh_metadata(video_id: str, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        return JSONResponse(status_code=404, content={"message": "Video not found"})
+    
+    url = f"https://www.youtube.com/watch?v={video.id}"
+    refresh_metadata_task.delay(url, video.file_path)
+    return {"status": "success", "message": "Metadata refresh task started in background."}
+
 
 @app.get("/api/channels")
 async def get_channels(db: Session = Depends(get_db)):
