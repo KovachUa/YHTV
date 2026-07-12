@@ -15,5 +15,34 @@ def get_db():
     finally:
         db.close()
 
+from sqlalchemy import text
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN progress FLOAT DEFAULT 0.0;"))
+            conn.commit()
+    except Exception:
+        pass
+        
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE channels ADD COLUMN settings TEXT NULL;"))
+            conn.commit()
+    except Exception:
+        pass
+        
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE channels ADD COLUMN browse_data TEXT NULL;"))
+            conn.commit()
+    except Exception:
+        pass
+        
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE videos ADD COLUMN watched BOOLEAN DEFAULT FALSE;"))
+            conn.commit()
+    except Exception:
+        pass

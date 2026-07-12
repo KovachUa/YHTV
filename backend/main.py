@@ -8,11 +8,15 @@ import os
 import time
 import asyncio
 import yt_dlp
+import datetime
 
-from database import init_db, get_db
+from database import init_db, get_db, SessionLocal
 from models import Video, Channel, DownloadTask
+from export import router as export_router
 
 app = FastAPI(title="YHTV Media Server")
+
+app.include_router(export_router)
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -89,10 +93,33 @@ async def cleanup_worker():
         if config.get("auto-cleanup", False):
             perform_cleanup()
 
+async def channel_refresh_worker():
+    while True:
+        try:
+            db = SessionLocal()
+            one_hour_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            channel = db.query(Channel).filter(
+                Channel.subscribed == True,
+                (Channel.last_refreshed < one_hour_ago) | (Channel.last_refreshed == None)
+            ).order_by(Channel.last_refreshed.asc()).first()
+            
+            channel_id = channel.id if channel else None
+            db.close()
+            
+            if channel_id:
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, fetch_and_update_channel, channel_id)
+                await asyncio.sleep(60) # Stagger updates by 60 seconds
+            else:
+                await asyncio.sleep(600) # Check every 10 minutes if no channels need update
+        except Exception:
+            await asyncio.sleep(60)
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
     asyncio.create_task(cleanup_worker())
+    asyncio.create_task(channel_refresh_worker())
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -130,12 +157,33 @@ from tasks import download_video_task, refresh_metadata_task
 class DownloadRequest(BaseModel):
     url: str
     type: str = "video"
+    channel_id: str = None
 
 class ChannelAddRequest(BaseModel):
     url: str
 
 class SubscribeRequest(BaseModel):
     subscribed: bool
+
+class VideoProgressRequest(BaseModel):
+    progress: float
+    duration: float
+
+@app.post("/api/videos/{video_id}/progress")
+async def update_video_progress(video_id: str, req: VideoProgressRequest, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        return JSONResponse(status_code=404, content={"message": "Video not found"})
+    
+    video.progress = req.progress
+    
+    # Auto-mark as watched if watched >= 90%
+    if req.duration > 0 and req.progress >= req.duration * 0.9:
+        if not video.watched:
+            video.watched = True
+            video.progress = req.duration
+    db.commit()
+    return {"status": "success", "watched": video.watched}
 
 @app.post("/api/channels/add")
 async def add_channel_only(req: ChannelAddRequest, db: Session = Depends(get_db)):
@@ -200,8 +248,29 @@ async def toggle_subscribe(channel_id: str, req: SubscribeRequest, db: Session =
 @app.post("/api/download")
 async def start_download(req: DownloadRequest, db: Session = Depends(get_db)):
     config = load_config()
+    
+    if req.channel_id:
+        channel = db.query(Channel).filter(Channel.id == req.channel_id).first()
+        if channel and channel.settings:
+            try:
+                ch_settings = json.loads(channel.settings)
+                config.update(ch_settings)
+            except Exception as e:
+                print("Error loading channel settings:", e)
+                
     if req.type == "thumbnail":
         config['force-thumbnail'] = True
+        
+    import re
+    # Check if the URL points to a single video that is already downloaded
+    match = re.search(r"(?:v=|\/|youtu\.be\/|shorts\/|embed\/)([0-9A-Za-z_-]{11})(?:[#\?&]|$)", req.url)
+    if match and "channel" not in req.url and "@" not in req.url and "playlist" not in req.url:
+        video_id = match.group(1)
+        db_video = db.query(Video).filter(Video.id == video_id).first()
+        if db_video and db_video.file_path and os.path.exists(os.path.join(DOWNLOADS_DIR, db_video.file_path)):
+            # It's already in the DB and file exists, skip downloading
+            return {"task_id": "completed", "status": "Already downloaded", "video_id": video_id}
+            
     task = download_video_task.delay(req.url, config)
     
     # Save to db
@@ -267,6 +336,24 @@ async def get_channels(db: Session = Depends(get_db)):
     channels = db.query(Channel).order_by(Channel.last_refreshed.desc()).all()
     return channels
 
+@app.get("/api/channels/{channel_id}/settings")
+async def get_channel_settings(channel_id: str, db: Session = Depends(get_db)):
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if channel and channel.settings:
+        return json.loads(channel.settings)
+    return {}
+
+@app.post("/api/channels/{channel_id}/settings")
+async def update_channel_settings(channel_id: str, request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if channel:
+        channel.settings = json.dumps(data)
+        db.commit()
+        return {"status": "success"}
+    return JSONResponse(status_code=404, content={"message": "Channel not found"})
+
+
 @app.delete("/api/videos/{video_id}")
 async def delete_video(video_id: str, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
@@ -307,65 +394,84 @@ async def manual_cleanup():
     deleted = perform_cleanup()
     return {"status": "success", "deleted_count": len(deleted), "deleted_files": deleted}
 
+def fetch_and_update_channel(channel_id: str):
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel: return None
+        
+        if channel_id.startswith('@'):
+            base_url = f"https://www.youtube.com/{channel_id}"
+        elif channel_id.startswith('UC'):
+            base_url = f"https://www.youtube.com/channel/{channel_id}"
+        else:
+            base_url = f"https://www.youtube.com/c/{channel_id}"
+            
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': 'in_playlist',
+            'playlistend': 30,
+            'no_warnings': True
+        }
+        
+        videos, shorts, streams = [], [], []
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                for suffix in ["/videos", "/shorts", "/streams"]:
+                    try:
+                        info = ydl.extract_info(base_url + suffix, download=False)
+                        if not info: continue
+                        entries = info.get('entries', [])
+                        for e in entries:
+                            if not e: continue
+                            item = {
+                                "id": e.get('id'),
+                                "title": e.get('title'),
+                                "url": e.get('url'),
+                                "duration": e.get('duration'),
+                                "view_count": e.get('view_count'),
+                                "thumbnail": e.get('thumbnails', [{}])[-1].get('url', '') if e.get('thumbnails') else ''
+                            }
+                            if suffix == "/videos": videos.append(item)
+                            elif suffix == "/shorts": shorts.append(item)
+                            elif suffix == "/streams": streams.append(item)
+                    except:
+                        pass
+        except:
+            pass
+            
+        result = {
+            "status": "success",
+            "videos": videos,
+            "shorts": shorts,
+            "streams": streams
+        }
+        channel.browse_data = json.dumps(result)
+        channel.last_refreshed = datetime.datetime.utcnow()
+        db.commit()
+        return result
+    finally:
+        db.close()
+
 @app.get("/api/channels/{channel_id}/browse")
 async def browse_channel(channel_id: str, db: Session = Depends(get_db)):
     channel = db.query(Channel).filter(Channel.id == channel_id).first()
     if not channel:
         return JSONResponse(status_code=404, content={"message": "Channel not found"})
         
-    if channel_id.startswith('@'):
-        base_url = f"https://www.youtube.com/{channel_id}"
-    elif channel_id.startswith('UC'):
-        base_url = f"https://www.youtube.com/channel/{channel_id}"
-    else:
-        base_url = f"https://www.youtube.com/c/{channel_id}"
-        
-    ydl_opts = {
-        'quiet': True,
-        'extract_flat': 'in_playlist',
-        'playlistend': 30, # Get last 30 items
-        'no_warnings': True
-    }
-    
-    videos = []
-    shorts = []
-    streams = []
-    
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            for suffix in ["/videos", "/shorts", "/streams"]:
-                try:
-                    info = ydl.extract_info(base_url + suffix, download=False)
-                    entries = info.get('entries', [])
-                    
-                    for entry in entries:
-                        if entry:
-                            vid_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                            thumbnail = f"https://img.youtube.com/vi/{entry.get('id')}/hqdefault.jpg"
-                            if entry.get('thumbnails'):
-                                thumbnail = entry['thumbnails'][-1].get('url', thumbnail)
-                                
-                            item = {
-                                "id": entry.get('id'),
-                                "title": entry.get('title'),
-                                "url": vid_url,
-                                "duration": entry.get('duration'),
-                                "view_count": entry.get('view_count'),
-                                "thumbnail": thumbnail,
-                                "type": suffix.strip("/")
-                            }
-                            if suffix == "/videos":
-                                videos.append(item)
-                            elif suffix == "/shorts":
-                                shorts.append(item)
-                            elif suffix == "/streams":
-                                streams.append(item)
-                except Exception:
-                    pass # Ignore if a channel doesn't have a specific tab
+    now = datetime.datetime.utcnow()
+    if channel.browse_data and channel.last_refreshed and (now - channel.last_refreshed).total_seconds() < 3600:
+        try:
+            return json.loads(channel.browse_data)
+        except:
+            pass
             
-            return {"status": "success", "videos": videos, "shorts": shorts, "streams": streams}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"message": f"Error browsing channel: {str(e)}"})
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, fetch_and_update_channel, channel_id)
+    if result:
+        return result
+    return JSONResponse(status_code=500, content={"message": "Error fetching channel metadata"})
 
 @app.delete("/api/queue/{task_id}")
 async def delete_queue_task(task_id: str, db: Session = Depends(get_db)):
@@ -407,6 +513,42 @@ async def retry_queue_task(task_id: str, db: Session = Depends(get_db)):
         db.commit()
         return {"status": "success"}
     return JSONResponse(status_code=400, content={"message": "Task not found or not in ERROR state"})
+
+import zipfile
+import io
+import datetime
+from fastapi.responses import StreamingResponse
+
+@app.get("/api/export")
+async def export_data(db: Session = Depends(get_db)):
+    channels = db.query(Channel).all()
+    videos = db.query(Video).all()
+    
+    export_data = {
+        "channels": [{"id": c.id, "name": c.name, "settings": c.settings} for c in channels],
+        "videos": [{"id": v.id, "title": v.title, "channel_id": v.channel_id, "file_path": v.file_path, "progress": v.progress, "watched": v.watched} for v in videos]
+    }
+    
+    config = load_config()
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("yhtv_export_data.json", json.dumps(export_data, ensure_ascii=False, indent=2))
+        zf.writestr("config.json", json.dumps(config, ensure_ascii=False, indent=2))
+        
+        db_path = os.path.join(BASE_DIR, "yhtv.db")
+        if os.path.exists(db_path):
+            zf.write(db_path, "yhtv.db")
+            
+    zip_buffer.seek(0)
+    filename = f"yhtv_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]), 
+        media_type="application/x-zip-compressed", 
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -17,6 +17,20 @@ function saveQueueState() {
     }));
 }
 
+// Helper to determine if a video is a Short
+window.isShort = function(v) {
+    if (!v.duration) return false;
+    let parts = String(v.duration).split(':');
+    if (parts.length === 1) {
+        // Just seconds
+        return parseInt(parts[0]) < 120;
+    } else if (parts.length === 2) {
+        // Minutes:Seconds
+        return parseInt(parts[0]) < 2;
+    }
+    return false; // Hours:Minutes:Seconds is definitely not a short
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // Елементи DOM
     const addBtn = document.getElementById('add-video-btn');
@@ -118,9 +132,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = await res.json();
                     console.log('Task queued:', data);
                     closeModal();
-                    // Redirect to queue view
-                    const navQueue = document.getElementById('nav-queue');
-                    if (navQueue) navQueue.click();
+                    
+                    if (data.status === 'Already downloaded') {
+                        const currentLang = localStorage.getItem('yhtvLang') || 'en';
+                        alert(currentLang === 'uk' ? 'Це відео вже є у вашій медіатеці!' : 'This video is already in your library!');
+                        // Redirect to library (media view)
+                        const navMedia = document.getElementById('nav-media');
+                        if (navMedia) navMedia.click();
+                    } else {
+                        // Redirect to queue view
+                        const navQueue = document.getElementById('nav-queue');
+                        if (navQueue) navQueue.click();
+                    }
                 } else {
                     const errText = await res.text();
                     alert('Error adding task: ' + errText);
@@ -186,6 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 const channelId = card.dataset.channelId;
                 window.currentChannelId = channelId;
+                localStorage.setItem('yhtvCurrentChannelId', channelId);
 
                 const avatarSrc = card.querySelector('.card-avatar img').src;
                 const channelName = card.querySelector('.card-title').textContent;
@@ -269,28 +293,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.ok) {
                     const allVideos = await res.json();
                     const channelVideos = allVideos.filter(v => v.channel_id === channelId);
-                    const container = document.getElementById('single-channel-videos-container');
-                    
-                    
-                    if (container) {
-                        if (channelVideos.length === 0) {
-                            container.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No videos downloaded yet.</p>';
-                        } else {
-                            container.innerHTML = channelVideos.map(v => `
-                                <div class="video-card" data-video-id="${v.id}" data-file-path="${v.file_path || ''}">
-                                    <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
-                                        <span class="video-duration">${v.duration || 'N/A'}</span>
-                                    </div>
-                                    <div class="video-info">
-                                        <h4 class="video-title">${v.title || 'Unknown Title'}</h4>
-                                        <p class="video-meta">${v.resolution || ''} • ${v.filesize || ''}</p>
-                                    </div>
-                                    <button class="icon-btn delete-btn" title="Delete">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                    </button>
-                                </div>`).join('');
-                        }
-                    }
+
+                    const renderLocalCard = (v) => `
+                        <div class="video-card ${v.watched ? 'watched' : ''}" data-video-id="${v.id}" data-file-path="${v.file_path || ''}" data-progress="${v.progress || 0}" data-watched="${v.watched || false}">
+                            <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
+                                <span class="video-duration">${v.duration || 'N/A'}</span>
+                                <div class="watched-badge" style="position:absolute; top:5px; left:5px; background:var(--bg-surface); color:var(--text-primary); padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Downloaded</div>
+                                ${v.watched ? '<div class="watched-badge" style="position:absolute; top:5px; right:5px; background:var(--btn-danger); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Переглянуто</div>' : ''}
+                                ${!v.watched && v.progress > 0 ? `<div class="progress-bar-container" style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.3);"><div style="height:100%; background:var(--btn-danger); width:${(v.progress / (v.duration ? parseInt(v.duration.split(':').reduce((acc,time) => (60 * acc) + +time)) : 1)) * 100}%;"></div></div>` : ''}
+                            </div>
+                            <div class="video-info">
+                                <h4 class="video-title">${v.title || 'Unknown Title'}</h4>
+                                <p class="video-meta">${v.resolution || ''} • ${v.filesize || ''}</p>
+                            </div>
+                            <button class="icon-btn delete-btn" title="Delete">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>`;
+
+                    const localVideosHtml = channelVideos.filter(v => !isShort(v)).map(renderLocalCard).join('');
+                    const localShortsHtml = channelVideos.filter(v => isShort(v)).map(renderLocalCard).join('');
+
                     
                     const loadingIndicator = document.getElementById('channel-loading-indicator');
                     
@@ -302,7 +325,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     if (loadingIndicator) {
                         for (const key in remoteContainers) {
-                            if (remoteContainers[key]) remoteContainers[key].innerHTML = '';
+                            if (remoteContainers[key]) {
+                                if (key === 'videos') remoteContainers[key].innerHTML = localVideosHtml;
+                                else if (key === 'shorts') remoteContainers[key].innerHTML = localShortsHtml;
+                                else remoteContainers[key].innerHTML = '';
+                            }
                         }
                         loadingIndicator.classList.remove('hidden');
                         
@@ -319,10 +346,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         if (!container || !data[type]) continue;
                                         
                                         const available = data[type].filter(v => !downloadedIds.has(v.id));
-                                        if (available.length === 0) {
-                                            container.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No items found.</p>';
-                                        } else {
-                                            container.innerHTML = available.map(v => {
+                                        
+                                        let html = type === 'videos' ? localVideosHtml : (type === 'shorts' ? localShortsHtml : '');
+                                        
+                                        if (available.length > 0) {
+                                            html += available.map(v => {
                                                 const h = v.duration ? Math.floor(v.duration / 3600) : 0;
                                                 const m = v.duration ? Math.floor((v.duration % 3600) / 60) : 0;
                                                 const s = v.duration ? Math.floor(v.duration % 60) : 0;
@@ -342,6 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 </div>`;
                                             }).join('');
                                         }
+                                        
+                                        if (!html) {
+                                            container.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No items found.</p>';
+                                        } else {
+                                            container.innerHTML = html;
+                                        }
                                     }
                                 }
                             } else {
@@ -360,7 +394,78 @@ document.addEventListener('DOMContentLoaded', () => {
             backToChannelsBtn.addEventListener('click', () => {
                 singleChannelView.classList.add('hidden');
                 channelsView.classList.remove('hidden');
+                localStorage.removeItem('yhtvCurrentChannelId');
             });
+        }
+        
+        const channelSettingsBtn = document.getElementById('channel-settings-btn');
+        const channelSettingsModal = document.getElementById('channel-settings-modal');
+        const closeChannelSettingsBtn = document.getElementById('close-channel-settings-btn');
+        const saveChannelSettingsBtn = document.getElementById('save-channel-settings-btn');
+        const channelSettingsForm = document.getElementById('channel-settings-form');
+
+        if (channelSettingsBtn && channelSettingsModal) {
+            channelSettingsBtn.addEventListener('click', async () => {
+                channelSettingsModal.classList.add('active');
+                channelSettingsForm.reset();
+                if (window.currentChannelId) {
+                    try {
+                        const res = await fetch('/api/channels/' + window.currentChannelId + '/settings');
+                        if (res.ok) {
+                            const settings = await res.json();
+                            for (const key in settings) {
+                                const input = channelSettingsForm.elements[key];
+                                if (input) {
+                                    if (input.type === 'checkbox') {
+                                        input.checked = settings[key];
+                                    } else {
+                                        input.value = settings[key];
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {}
+                }
+            });
+
+            const closeSettings = () => channelSettingsModal.classList.remove('active');
+            if (closeChannelSettingsBtn) closeChannelSettingsBtn.addEventListener('click', closeSettings);
+            channelSettingsModal.addEventListener('click', (e) => {
+                if (e.target === channelSettingsModal) closeSettings();
+            });
+
+            if (saveChannelSettingsBtn) {
+                saveChannelSettingsBtn.addEventListener('click', async () => {
+                    if (!window.currentChannelId) return;
+                    saveChannelSettingsBtn.textContent = 'Saving...';
+                    
+                    const formData = new FormData(channelSettingsForm);
+                    const data = {};
+                    for (let [key, value] of formData.entries()) {
+                        if (value !== '') {
+                            if (value === 'true') data[key] = true;
+                            else if (value === 'false') data[key] = false;
+                            else data[key] = value;
+                        }
+                    }
+                    
+                    try {
+                        const res = await fetch('/api/channels/' + window.currentChannelId + '/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                        if (res.ok) {
+                            closeSettings();
+                        } else {
+                            alert('Failed to save channel settings');
+                        }
+                    } catch (e) {
+                        alert('Network error');
+                    }
+                    saveChannelSettingsBtn.textContent = 'Save';
+                });
+            }
         }
     }
 
@@ -405,16 +510,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     const res = await fetch('/api/download', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url, type: 'video' })
+                        body: JSON.stringify({ url, type: 'video', channel_id: window.currentChannelId })
                     });
                     if (res.ok) {
-                        btn.textContent = currentLang === 'uk' ? 'В черзі' : 'Queued';
+                        const data = await res.json();
+                        if (data.status === 'Already downloaded') {
+                            btn.textContent = currentLang === 'uk' ? 'Вже завантажено' : 'Downloaded';
+                        } else {
+                            btn.textContent = currentLang === 'uk' ? 'В черзі' : 'Queued';
+                            const navQueue = document.getElementById('nav-queue');
+                            if (navQueue) navQueue.style.transform = 'scale(1.1)';
+                            setTimeout(() => { if (navQueue) navQueue.style.transform = 'none'; }, 200);
+                        }
                         btn.style.background = 'var(--bg-surface)';
                         btn.style.color = 'var(--text-secondary)';
                         btn.style.border = '1px solid var(--border-color)';
-                        const navQueue = document.getElementById('nav-queue');
-                        if (navQueue) navQueue.style.transform = 'scale(1.1)';
-                        setTimeout(() => { if (navQueue) navQueue.style.transform = 'none'; }, 200);
                     } else {
                         btn.textContent = 'Error';
                         btn.disabled = false;
@@ -477,6 +587,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    const exportDataBtn = document.getElementById('export-db-btn');
+    if (exportDataBtn) {
+        exportDataBtn.addEventListener('click', () => {
+            window.location.href = '/api/export';
+        });
+    }
+
+    const importDataFile = document.getElementById('import-data-file');
+    if (importDataFile) {
+        importDataFile.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (confirm('Увага! Відновлення бази даних об\'єднає поточні дані з даними з бекапу. Ви впевнені?')) {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const res = await fetch('/api/import', {
+                            method: 'POST',
+                            body: event.target.result,
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (res.ok) {
+                            alert('Базу даних успішно відновлено! Сторінка буде перезавантажена.');
+                            window.location.reload();
+                        } else {
+                            alert('Помилка при відновленні бази даних.');
+                        }
+                    } catch (err) {
+                        alert('Помилка мережі при відновленні.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+            e.target.value = ''; // Reset
+        });
+    }
 
     // Логіка видалення
     const deleteIconSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
@@ -579,8 +730,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if(playerModal) playerModal.classList.remove('active');
             
             if (vjsPlayer) {
-                if (window.currentVideoPath) {
-                    localStorage.setItem('vid_pos_' + window.currentVideoPath, vjsPlayer.currentTime());
+                // Final progress sync is handled by timeupdate, but we can send one last
+                if (window.currentVideoId && vjsPlayer.currentTime() > 0) {
+                    fetch('/api/videos/' + window.currentVideoId + '/progress', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({progress: vjsPlayer.currentTime(), duration: vjsPlayer.duration() || 0})
+                    }).catch(e => console.error(e));
                 }
                 vjsPlayer.dispose();
                 vjsPlayer = null;
@@ -607,6 +763,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 else if (filePath.toLowerCase().endsWith('.mkv')) type = 'video/mp4'; // vjs fallback
                 
                 window.currentVideoPath = filePath;
+                window.currentVideoId = videoCard.dataset.videoId;
+                
+                // Read progress from dataset
+                const savedPos = videoCard.dataset.progress;
+                const timeToSet = savedPos ? parseFloat(savedPos) : 0;
                 
                 // Recreate video tag container
                 const videoContainer = playerModal.querySelector('.video-container');
@@ -631,6 +792,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         fluid: false,
                         playbackRates: [0.5, 1, 1.25, 1.5, 2]
                     });
+                    
+
 
                     // YouTube style time toggle
                     let showingRemaining = false;
@@ -652,6 +815,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return `${m}:${s < 10 ? '0' : ''}${s}`;
                     };
                     
+                    let lastProgressSync = 0;
                     const updateTimeDisplay = () => {
                         const current = vjsPlayer.currentTime() || 0;
                         const duration = vjsPlayer.duration() || 0;
@@ -660,6 +824,40 @@ document.addEventListener('DOMContentLoaded', () => {
                             timeContainer.innerHTML = `<span class="vjs-control-text">Remaining Time </span>-${formatTime(duration - current)}`;
                         } else {
                             timeContainer.innerHTML = `<span class="vjs-control-text">Current Time </span>${formatTime(current)}<span style="margin: 0 4px; color: var(--text-secondary)">/</span>${formatTime(duration)}`;
+                        }
+                        
+                        // Sync progress to backend every 5 seconds
+                        if (window.currentVideoId && duration > 0 && Math.abs(current - lastProgressSync) > 5) {
+                            lastProgressSync = current;
+                            fetch('/api/videos/' + window.currentVideoId + '/progress', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({progress: current, duration: duration})
+                            }).then(r => r.json()).then(data => {
+                                const cards = document.querySelectorAll(`.video-card[data-video-id="${window.currentVideoId}"]`);
+                                cards.forEach(card => {
+                                    card.dataset.progress = current;
+                                    let pb = card.querySelector('.progress-bar-container > div');
+                                    if (pb) {
+                                        pb.style.width = (current / duration) * 100 + '%';
+                                    } else if (current > 0) {
+                                        const thumb = card.querySelector('.video-thumbnail');
+                                        if (thumb && !card.classList.contains('watched')) {
+                                            thumb.insertAdjacentHTML('beforeend', `<div class="progress-bar-container" style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.3);"><div style="height:100%; background:var(--btn-danger); width:${(current / duration) * 100}%;"></div></div>`);
+                                        }
+                                    }
+                                    if (data.watched && !card.classList.contains('watched')) {
+                                        card.classList.add('watched');
+                                        card.dataset.watched = "true";
+                                        const thumb = card.querySelector('.video-thumbnail');
+                                        if (thumb && !thumb.querySelector('.watched-badge')) {
+                                            thumb.insertAdjacentHTML('beforeend', '<div class="watched-badge" style="position:absolute; top:5px; left:5px; background:var(--primary-color); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Переглянуто</div>');
+                                        }
+                                        const pbc = card.querySelector('.progress-bar-container');
+                                        if (pbc) pbc.remove();
+                                    }
+                                });
+                            }).catch(e => console.error('Sync progress error:', e));
                         }
                     };
 
@@ -709,14 +907,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const cacheBustedPath = filePath + "?t=" + new Date().getTime();
                     vjsPlayer.src({ type: type, src: cacheBustedPath });
                     
-                    const savedPos = localStorage.getItem('vid_pos_' + filePath);
-                    const timeToSet = savedPos ? parseFloat(savedPos) : 0;
-                    
+                    const startVideo = () => {
+                        if (timeToSet > 0 && timeToSet < vjsPlayer.duration()) {
+                            vjsPlayer.currentTime(timeToSet);
+                        }
+                        vjsPlayer.play().catch(e => console.log("Autoplay blocked", e));
+                    };
+
                     vjsPlayer.ready(function() {
-                        vjsPlayer.one('loadedmetadata', function() {
-                            if (timeToSet > 0) vjsPlayer.currentTime(timeToSet);
-                            vjsPlayer.play().catch(e => console.log("Autoplay blocked", e));
-                        });
+                        if (vjsPlayer.readyState() >= 1) {
+                            startVideo();
+                        } else {
+                            vjsPlayer.one('loadedmetadata', startVideo);
+                        }
                     });
                 }, 50);
 
@@ -869,6 +1072,9 @@ document.addEventListener('DOMContentLoaded', () => {
         navChannels.addEventListener('click', (e) => {
             if (e) e.preventDefault();
             localStorage.setItem('yhtvActiveTab', 'nav-channels');
+            if (e && e.isTrusted) {
+                localStorage.removeItem('yhtvCurrentChannelId');
+            }
             hideAllViews();
             navChannels.classList.add('active');
             channelsView.classList.remove('hidden');
@@ -1286,6 +1492,9 @@ async function fetchVideos() {
         let videos = await res.json();
         
         try {
+            // Filter out shorts from the main home page
+            videos = videos.filter(v => !isShort(v));
+
             if (window.currentSearchTerm) {
                 videos = videos.filter(v => (v.title || '').toLowerCase().includes(window.currentSearchTerm));
             }
@@ -1311,9 +1520,11 @@ async function fetchVideos() {
                         const safeThumb = (v.thumbnail || '').replace(/'/g, '%27');
                         
                         return `
-                            <div class="video-card" data-video-id="${v.id}" data-file-path="${safePath}">
+                            <div class="video-card ${v.watched ? 'watched' : ''}" data-video-id="${v.id}" data-file-path="${safePath}" data-progress="${v.progress || 0}" data-watched="${v.watched || false}">
                                 <div class="video-thumbnail" style="background-image: url('${safeThumb}');">
                                     <span class="video-duration">${v.duration || 'N/A'}</span>
+                                    ${v.watched ? '<div class="watched-badge" style="position:absolute; top:5px; left:5px; background:var(--btn-danger); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Переглянуто</div>' : ''}
+                                    ${!v.watched && v.progress > 0 ? `<div class="progress-bar-container" style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.3);"><div style="height:100%; background:var(--btn-danger); width:${(v.progress / (v.duration ? parseInt(v.duration.split(':').reduce((acc,time) => (60 * acc) + +time)) : 1)) * 100}%;"></div></div>` : ''}
                                 </div>
                                 <div class="video-info">
                                     <h4 class="video-title" title="${safeTitle}">${safeTitle}</h4>
@@ -1360,6 +1571,18 @@ async function fetchChannels() {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </div>`).join('');
+            
+            // Auto-open saved channel if exists (only on initial load)
+            if (!window.yhtvInitialLoadDone) {
+                window.yhtvInitialLoadDone = true;
+                const savedChannelId = localStorage.getItem('yhtvCurrentChannelId');
+                if (savedChannelId) {
+                    const cardToClick = document.querySelector(`.card[data-channel-id="${savedChannelId}"]`);
+                    if (cardToClick) {
+                        cardToClick.click();
+                    }
+                }
+            }
         }
     }
 }

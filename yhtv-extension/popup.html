@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>YHTV Downloader</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      width: 250px;
+      padding: 15px;
+      background: #282828;
+      color: #ebdbb2;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    h3 {
+      margin: 0;
+      color: #d79921;
+      font-size: 16px;
+    }
+    #settings-btn {
+      background: none;
+      border: none;
+      color: #a89984;
+      cursor: pointer;
+      padding: 2px;
+      font-size: 16px;
+    }
+    #settings-btn:hover { color: #ebdbb2; }
+    
+    #settings-panel {
+      display: none;
+      margin-bottom: 15px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #504945;
+    }
+    input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+      background: #3c3836;
+      border: 1px solid #504945;
+      color: #ebdbb2;
+      border-radius: 4px;
+    }
+    button.main-btn {
+      width: 100%;
+      padding: 12px;
+      background: #d79921;
+      color: #282828;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button.main-btn:hover {
+      background: #fabd2f;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 12px;
+      text-align: center;
+      min-height: 15px;
+    }
+    .success { color: #b8bb26; }
+    .error { color: #fb4934; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>YHTV Downloader</h3>
+    <button id="settings-btn" title="Налаштування">⚙️</button>
+  </div>
+  
+  <div id="settings-panel">
+    <label style="font-size: 12px; display: block; margin-bottom: 4px;">Server API URL:</label>
+    <input type="text" id="server-url" placeholder="http://192.168.1.10:8000" />
+  </div>
+  
+  <button id="download-btn" class="main-btn">Send to YHTV</button>
+  
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

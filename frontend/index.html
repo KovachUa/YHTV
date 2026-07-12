@@ -101,7 +101,8 @@
                         <h2>Як працює Rust у 2026 році</h2>
                         <p>154K subscribers</p>
                     </div>
-                    <button class="btn btn-secondary" id="back-to-channels" style="width: auto;">&larr; Back to Channels</button>
+                    <button class="btn btn-secondary" id="channel-settings-btn" style="width: auto;">Settings</button>
+                    <button class="btn btn-secondary" id="back-to-channels" style="width: auto;">&larr; Back</button>
                     <button class="btn btn-unsubscribe" style="width: auto;">Unsubscribe</button>
                     <button class="btn btn-danger-outline delete-channel-btn" style="width: auto; display: flex; align-items: center; gap: 8px;">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -111,18 +112,12 @@
             </div>
 
             <div class="channel-tabs">
-                <button class="channel-tab active" data-target="tab-local">Завантажені</button>
-                <button class="channel-tab" data-target="tab-videos">Відео</button>
+                <button class="channel-tab active" data-target="tab-videos">Відео</button>
                 <button class="channel-tab" data-target="tab-shorts">Shorts</button>
                 <button class="channel-tab" data-target="tab-streams">Наживо</button>
             </div>
 
-            <div id="tab-local" class="channel-tab-content active">
-                <div class="grid-container" id="single-channel-videos-container">
-                </div>
-            </div>
-
-            <div id="tab-videos" class="channel-tab-content hidden">
+            <div id="tab-videos" class="channel-tab-content active">
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
                     <button class="btn btn-primary" id="download-all-videos-btn" style="width: auto;">Download All Videos</button>
                 </div>
@@ -168,7 +163,9 @@
         <div id="config-view" class="hidden">
             <div class="page-header">
                 <h2 data-i18n="config-title">Download Configuration</h2>
-                <div class="header-controls">
+                <div class="config-actions">
+                    <button class="btn btn-secondary" id="export-db-btn" style="width: auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px; display:inline; vertical-align:middle; margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Експорт БД</button>
+                    <label class="btn btn-secondary" style="width: auto; cursor: pointer; margin-right: 5px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px; display:inline; vertical-align:middle; margin-right:5px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l-5-5-5 5M12 15V3"/></svg> Відновити БД<input type="file" id="import-data-file" accept=".json" style="display: none;"></label>
                     <button class="btn btn-secondary" id="reset-config-btn" style="width: auto;">Reset to Defaults</button>
                     <button class="btn btn-primary" id="save-config-btn" style="width: auto;">Save Settings</button>
                 </div>
@@ -176,10 +173,10 @@
 
             <div class="profiles-container" style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; background: var(--bg-card); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color);">
                 <strong style="display: flex; align-items: center; margin-right: 10px; color: var(--text-primary);">Профілі:</strong>
-                <button type="button" class="btn btn-secondary profile-btn" data-profile="max">Максимальна якість</button>
-                <button type="button" class="btn btn-secondary profile-btn" data-profile="optimal">Оптимальна якість</button>
-                <button type="button" class="btn btn-secondary profile-btn" data-profile="fast">Швидке завантаження</button>
-                <button type="button" class="btn btn-secondary profile-btn" data-profile="audio">Тільки аудіо</button>
+                <button type="button" class="btn btn-secondary profile-btn" style="width: auto;" data-profile="max">Максимальна якість</button>
+                <button type="button" class="btn btn-secondary profile-btn" style="width: auto;" data-profile="optimal">Оптимальна якість</button>
+                <button type="button" class="btn btn-secondary profile-btn" style="width: auto;" data-profile="fast">Швидке завантаження</button>
+                <button type="button" class="btn btn-secondary profile-btn" style="width: auto;" data-profile="audio">Тільки аудіо</button>
             </div>
 
             <div class="config-container layout-sidebar">
@@ -534,6 +531,42 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancel-delete-btn">Cancel</button>
                 <button class="btn" id="confirm-delete-btn" style="background-color: var(--btn-danger); color: white; border: none;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Channel Settings Modal -->
+    <div class="modal-overlay" id="channel-settings-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Channel Settings</h2>
+                <button class="icon-btn close-modal" id="close-channel-settings-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 15px;">Override global settings for this channel. Leave empty to use global defaults.</p>
+                <form id="channel-settings-form">
+                    <div class="form-group">
+                        <label>Format Selection (Quality)</label>
+                        <input type="text" name="format" placeholder="e.g. bestvideo[height<=1080]+bestaudio/best">
+                    </div>
+                    <div class="form-group">
+                        <label>Output Template</label>
+                        <input type="text" name="output" placeholder="%(uploader)s/%(title)s.%(ext)s">
+                    </div>
+                    <div class="form-group">
+                        <label>Embed Thumbnail</label>
+                        <select name="embed-thumbnail" style="width: 100%; padding: 8px; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+                            <option value="">Global Default</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="save-channel-settings-btn">Save</button>
             </div>
         </div>
     </div>

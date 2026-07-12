@@ -87,6 +87,11 @@ def download_video_task(self, url: str, config: dict):
     ydl_opts['extractor_args'] = {'youtube': ['player_client=android,ios']}
     # Guarantee moov atom is at the start of the MP4 so browsers can seek immediately
     ydl_opts['postprocessor_args'] = {'video': ['-movflags', '+faststart']}
+    
+    # Ignore shorts globally during download
+    from yt_dlp.utils import match_filter_func
+    ydl_opts['match_filter'] = match_filter_func("!is_short")
+    
     if config.get('hls-use-mpegts'): ydl_opts['hls_use_mpegts'] = True
     if config.get('no-download'): ydl_opts['skip_download'] = True
     if config.get('embed-thumbnail'):
@@ -163,17 +168,29 @@ def download_video_task(self, url: str, config: dict):
             db_channel = Channel(id=channel_id, name=channel_name)
             db.add(db_channel)
             
-        db_video = Video(
-            id=info.get('id', str(time.time())),
-            title=title,
-            channel_id=channel_id,
-            duration=str(info.get('duration_string', info.get('duration', ''))),
-            resolution=info.get('resolution', ''),
-            filesize=str(info.get('filesize_approx', '') or info.get('filesize', '')),
-            thumbnail=info.get('thumbnail', ''),
-            file_path=filename
-        )
-        db.add(db_video)
+        video_id = info.get('id', str(time.time()))
+        db_video = db.query(Video).filter(Video.id == video_id).first()
+        if not db_video:
+            db_video = Video(
+                id=video_id,
+                title=title,
+                channel_id=channel_id,
+                duration=str(info.get('duration_string', info.get('duration', ''))),
+                resolution=info.get('resolution', ''),
+                filesize=str(info.get('filesize_approx', '') or info.get('filesize', '')),
+                thumbnail=info.get('thumbnail', ''),
+                file_path=filename
+            )
+            db.add(db_video)
+        else:
+            # Update existing video record
+            db_video.title = title
+            db_video.file_path = filename
+            db_video.duration = str(info.get('duration_string', info.get('duration', '')))
+            db_video.resolution = info.get('resolution', '')
+            db_video.filesize = str(info.get('filesize_approx', '') or info.get('filesize', ''))
+            db_video.thumbnail = info.get('thumbnail', '')
+            
         db.commit()
 
         return {

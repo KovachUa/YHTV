@@ -1153,29 +1153,52 @@ select.btn-secondary option {
     color: var(--brand-color) !important;
 }
 
-/* Menus (Playback Rate, etc) */
-.video-js .vjs-menu-button-popup .vjs-menu .vjs-menu-content {
-    background: rgba(60, 56, 54, 0.9) !important;
-    backdrop-filter: blur(8px);
-    border-radius: 8px;
-    padding: 5px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    bottom: 15px;
+/* Premium Horizontal Playback Rate Menu */
+.video-js .vjs-playback-rate .vjs-menu {
+    width: max-content !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    bottom: 4em !important;
 }
 
-.video-js .vjs-menu li {
-    border-radius: 4px;
-    font-size: 13px;
-    text-transform: none;
-    font-weight: 600;
-    padding: 8px 15px;
-    margin: 2px 0;
-    transition: background 0.2s, color 0.2s;
+.video-js .vjs-playback-rate .vjs-menu-content {
+    display: flex !important;
+    flex-direction: row !important;
+    background: rgba(15, 15, 15, 0.95) !important;
+    backdrop-filter: blur(15px);
+    border-radius: 30px !important;
+    padding: 8px !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.05) !important;
+    border: none !important;
+    margin: 0 !important;
 }
 
-.video-js .vjs-menu li.vjs-selected, 
-.video-js .vjs-menu li:focus, 
-.video-js .vjs-menu li:hover {
-    background-color: var(--brand-color) !important;
-    color: var(--bg-main) !important;
+.video-js .vjs-playback-rate .vjs-menu li {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    padding: 0 !important;
+    margin: 0 6px !important;
+    color: #e0e0e0 !important;
+    background: rgba(255,255,255,0.08) !important;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    text-transform: uppercase !important;
+}
+
+.video-js .vjs-playback-rate .vjs-menu li .vjs-menu-item-text {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.video-js .vjs-playback-rate .vjs-menu li.vjs-selected, 
+.video-js .vjs-playback-rate .vjs-menu li:hover {
+    background-color: var(--primary-color) !important;
+    color: #fff !important;
+    transform: translateY(-5px) scale(1.15) !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5) !important;
+    z-index: 10;
 }

@@ -15,6 +15,8 @@ class Channel(Base):
     description = Column(Text, nullable=True)
     last_refreshed = Column(DateTime, default=datetime.datetime.utcnow)
     subscribed = Column(Boolean, default=False)
+    settings = Column(Text, nullable=True)
+    browse_data = Column(Text, nullable=True)
     
     videos = relationship("Video", back_populates="channel")
 
@@ -29,6 +31,8 @@ class Video(Base):
     thumbnail = Column(String, nullable=True)
     file_path = Column(String, nullable=True)
     downloaded_at = Column(DateTime, default=datetime.datetime.utcnow)
+    progress = Column(Float, default=0.0)
+    watched = Column(Boolean, default=False)
     
     channel = relationship("Channel", back_populates="videos")
 

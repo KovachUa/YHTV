@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "YHTV Downloader",
+  "version": "1.0",
+  "description": "Send YouTube videos directly to your YHTV server with one click.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "*://*/*"
+  ]
+}
