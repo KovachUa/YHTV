@@ -62,6 +62,10 @@ def download_video_task(self, url: str, config: dict):
         'progress_hooks': [progress_hook],
         'quiet': True,
         'no_warnings': True,
+        'js_runtimes': {'deno': {}},
+        'merge_output_format': 'mp4',
+        'remote_components': ['ejs:github'],
+        'postprocessor_args': ['-movflags', '+faststart']
     }
     
     # Network & Connection
@@ -76,7 +80,13 @@ def download_video_task(self, url: str, config: dict):
         ydl_opts['concurrent_fragment_downloads'] = int(config.get('concurrent-fragments'))
         
     # Format settings
-    ydl_opts['format'] = config.get('format', 'bestvideo+bestaudio/best')
+    # Tube Archivist optimized format for max compatibility:
+    # Force MP4 compatible codecs! If yt-dlp puts Opus audio in an MP4 container, Chrome hangs indefinitely!
+    ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+    # Bypass HTTP 403 Forbidden by impersonating Android/iOS clients instead of web
+    ydl_opts['extractor_args'] = {'youtube': ['player_client=android,ios']}
+    # Guarantee moov atom is at the start of the MP4 so browsers can seek immediately
+    ydl_opts['postprocessor_args'] = {'video': ['-movflags', '+faststart']}
     if config.get('hls-use-mpegts'): ydl_opts['hls_use_mpegts'] = True
     if config.get('no-download'): ydl_opts['skip_download'] = True
     if config.get('embed-thumbnail'):
@@ -116,6 +126,14 @@ def download_video_task(self, url: str, config: dict):
             info = ydl.extract_info(url, download=True)
             title = info.get('title', 'Unknown Title')
             filename = ydl.prepare_filename(info)
+            
+            # yt-dlp might change the extension to .mkv or .mp4 after merging with ffmpeg
+            if not os.path.exists(filename):
+                base_path, _ = os.path.splitext(filename)
+                for ext in ['.mkv', '.mp4', '.webm', '.m4a']:
+                    if os.path.exists(base_path + ext):
+                        filename = base_path + ext
+                        break
             channel_name = info.get('uploader', 'Unknown Channel')
             channel_id = info.get('channel_id', 'unknown_channel_' + str(time.time()))
             

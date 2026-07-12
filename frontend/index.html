@@ -4,10 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YHTV Media Server</title>
-    <link rel="stylesheet" href="static/css/style.css?v=2036">
-    <script src="static/js/bg.js?v=2034" defer></script>
-    <script src="static/js/lang.js?v=2034" defer></script>
-    <script src="static/js/app.js?v=2042" defer></script>
+    <link rel="stylesheet" href="static/css/style.css?v=2038">
+    <script src="static/js/bg.js?v=2035" defer></script>
+    <script src="static/js/lang.js?v=2035" defer></script>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js" defer></script>
+    <script src="static/js/app.js?v=2056" defer></script>
 </head>
 <body>
     <!-- Top Navigation -->
@@ -67,6 +69,7 @@
             </div>
         </div>
 
+
         <div id="channels-view" class="hidden">
             <div class="page-header">
                 <h2>Channels</h2>
@@ -108,24 +111,42 @@
             </div>
 
             <div class="channel-tabs">
-                <button class="channel-tab active" data-target="tab-downloaded">Downloaded Videos</button>
-                <button class="channel-tab" data-target="tab-available">Available on YouTube</button>
+                <button class="channel-tab active" data-target="tab-local">Завантажені</button>
+                <button class="channel-tab" data-target="tab-videos">Відео</button>
+                <button class="channel-tab" data-target="tab-shorts">Shorts</button>
+                <button class="channel-tab" data-target="tab-streams">Наживо</button>
             </div>
 
-            <div id="tab-downloaded" class="channel-tab-content active">
+            <div id="tab-local" class="channel-tab-content active">
                 <div class="grid-container" id="single-channel-videos-container">
                 </div>
             </div>
 
-            <div id="tab-available" class="channel-tab-content hidden">
+            <div id="tab-videos" class="channel-tab-content hidden">
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
-                    <button class="btn btn-primary" id="download-all-channel-btn" style="width: auto;">Download All</button>
+                    <button class="btn btn-primary" id="download-all-videos-btn" style="width: auto;">Download All Videos</button>
                 </div>
                 <div id="channel-loading-indicator" class="hidden" style="padding: 20px; color: var(--text-secondary); text-align: center;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin" style="width: 24px; height: 24px; margin-right: 10px; vertical-align: middle;"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
-                    Loading latest videos...
+                    Loading channel data...
                 </div>
-                <div class="grid-container" id="single-channel-available-container">
+                <div class="grid-container" id="remote-videos-container">
+                </div>
+            </div>
+
+            <div id="tab-shorts" class="channel-tab-content hidden">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+                    <button class="btn btn-primary" id="download-all-shorts-btn" style="width: auto;">Download All Shorts</button>
+                </div>
+                <div class="grid-container" id="remote-shorts-container">
+                </div>
+            </div>
+
+            <div id="tab-streams" class="channel-tab-content hidden">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+                    <button class="btn btn-primary" id="download-all-streams-btn" style="width: auto;">Download All Streams</button>
+                </div>
+                <div class="grid-container" id="remote-streams-container">
                 </div>
             </div>
         </div>
@@ -457,6 +478,18 @@
                                 <label for="ignore-errors" title="-i, --ignore-errors / --abort-on-error">Ignore Errors (continue on failure)</label>
                             </div>
                         </div>
+
+                        <div class="config-section">
+                            <h3>Maintenance</h3>
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="auto-cleanup" name="auto-cleanup">
+                                <label for="auto-cleanup" title="Автоматично видаляти сміття та зламані файли">Auto-cleanup trash and broken files</label>
+                            </div>
+                            <div class="form-group">
+                                <button type="button" class="btn btn-secondary" id="manual-cleanup-btn" style="width: auto;">Run Cleanup Now</button>
+                                <span id="cleanup-status" style="margin-left: 10px; font-size: 14px;"></span>
+                            </div>
+                        </div>
                     </div>
 
                 </form></div>
@@ -511,10 +544,12 @@
             <button class="icon-btn close-modal" id="close-player-btn" style="position: absolute; top: 10px; right: 10px; z-index: 10; background: rgba(0,0,0,0.5); color: white; border-radius: 50%;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
-            <video id="main-video-player" controls preload="auto" style="width: 100%; max-height: 80vh; outline: none; border-radius: 12px 12px 0 0;">
-                <source src="" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
+            <div class="video-container" style="position: relative; width: 100%; display: flex; flex-direction: column;">
+                <video id="main-video-player" controls preload="auto" style="width: 100%; min-height: 400px; max-height: 80vh; outline: none; border-radius: 12px 12px 0 0; background: #000; cursor: pointer;">
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
             <div style="padding: 16px; background: var(--bg-card); border-radius: 0 0 12px 12px;">
                 <h3 id="player-title" style="margin-bottom: 8px;">Video Title</h3>
                 <p id="player-meta" style="color: var(--text-secondary); font-size: 0.9em; margin-bottom: 16px; display: inline-block;">YHTV • Local Playback</p>

@@ -8,6 +8,9 @@ services:
       - backend
     networks:
       - yhtv-net
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+      - yhtv_downloads:/downloads
 
   backend:
     build: ./backend
@@ -29,19 +32,18 @@ services:
   worker:
     build: ./backend
     container_name: yhtv-worker
+    network_mode: "host"
     command: celery -A celery_app worker --loglevel=info --concurrency=4
     volumes:
       - yhtv_downloads:/downloads
     environment:
-      - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
-      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
+      - REDIS_URL=redis://:yhtv_secure_pass_2026@127.0.0.1:6379/0
+      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@127.0.0.1:5433/yhtv
     depends_on:
       redis:
         condition: service_healthy
       db:
         condition: service_healthy
-    networks:
-      - yhtv-net
 
   redis:
     image: redis:7-alpine
@@ -66,6 +68,8 @@ services:
       POSTGRES_USER: yhtv
       POSTGRES_PASSWORD: yhtv_db_pass_2026
       POSTGRES_DB: yhtv
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - yhtv_pgdata:/var/lib/postgresql/data
     healthcheck:

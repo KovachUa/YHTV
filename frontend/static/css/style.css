@@ -910,3 +910,272 @@ select.btn-secondary option {
 .channel-tab-content.active {
     display: block;
 }
+
+/* Custom Video Player Controls */
+.video-container {
+    position: relative;
+    width: 100%;
+}
+.custom-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 15px 10px 15px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10;
+}
+.video-container:hover .custom-controls,
+.video-container.active .custom-controls {
+    opacity: 1;
+}
+.progress-container {
+    position: relative;
+    height: 6px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 3px;
+    cursor: pointer;
+    margin-bottom: 15px;
+    transition: height 0.1s;
+}
+.progress-container:hover {
+    height: 8px;
+}
+.progress-bar-bg {
+    position: absolute;
+    top: 0; left: 0; bottom: 0; right: 0;
+}
+.progress-bar-buffered {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: rgba(255,255,255,0.4); /* Highlight for buffer */
+    border-radius: 3px;
+    width: 0%;
+}
+.progress-bar-played {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: var(--primary-color);
+    border-radius: 3px;
+    width: 0%;
+}
+.progress-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 14px;
+    height: 14px;
+    background: var(--primary-color);
+    border-radius: 50%;
+    transition: transform 0.1s;
+}
+.progress-container:hover .progress-thumb {
+    transform: translate(-50%, -50%) scale(1);
+}
+.controls-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.control-btn {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.9;
+    transition: opacity 0.2s;
+}
+.control-btn:hover {
+    opacity: 1;
+}
+.control-btn svg {
+    width: 24px;
+    height: 24px;
+}
+.time-display {
+    color: white;
+    font-size: 14px;
+    font-family: monospace;
+}
+.volume-slider {
+    width: 80px;
+    cursor: pointer;
+    accent-color: var(--primary-color);
+}
+
+/* --- Custom Video.js Premium Skin (YHTV Theme) --- */
+
+/* Main Player Background */
+.video-js {
+    font-family: inherit;
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* Big Play Button */
+.video-js .vjs-big-play-button {
+    background-color: rgba(60, 56, 54, 0.8) !important;
+    backdrop-filter: blur(8px);
+    border: 2px solid var(--brand-color) !important;
+    color: var(--brand-color) !important;
+    border-radius: 50% !important;
+    width: 80px !important;
+    height: 80px !important;
+    line-height: 76px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.video-js:hover .vjs-big-play-button {
+    background-color: var(--brand-color) !important;
+    color: var(--bg-main) !important;
+    transform: scale(1.1) translate(-45%, -45%);
+}
+
+/* Control Bar (Glassmorphism & Floating) */
+.video-js .vjs-control-bar {
+    background: rgba(40, 40, 40, 0.7) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 12px;
+    bottom: 15px !important;
+    left: 15px !important;
+    right: 15px !important;
+    width: calc(100% - 30px) !important;
+    padding: 0 10px;
+    height: 48px !important;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: opacity 0.4s ease, bottom 0.4s ease !important;
+}
+
+/* Slide down control bar when inactive or paused (sometimes it hides natively, we enhance it) */
+.video-js.vjs-has-started.vjs-user-inactive.vjs-playing .vjs-control-bar {
+    bottom: -60px !important;
+    opacity: 0 !important;
+}
+
+/* Progress Control / Slider */
+.video-js .vjs-progress-control {
+    position: absolute;
+    top: -16px;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 16px;
+    display: flex;
+    align-items: center;
+}
+
+.video-js .vjs-progress-holder {
+    height: 5px;
+    border-radius: 5px;
+    margin: 0;
+    transition: height 0.2s ease;
+}
+
+.video-js .vjs-progress-control:hover .vjs-progress-holder {
+    height: 10px; /* Expand on hover */
+}
+
+/* Slider Colors */
+.video-js .vjs-play-progress {
+    background-color: var(--brand-color) !important;
+    border-radius: 5px;
+}
+
+.video-js .vjs-play-progress:before {
+    color: var(--brand-color) !important;
+    font-size: 18px !important;
+    top: -5px !important;
+    text-shadow: 0 0 5px rgba(250, 189, 47, 0.8);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(0); /* Hide playhead thumb until hovered */
+}
+
+.video-js .vjs-progress-control:hover .vjs-play-progress:before {
+    transform: scale(1.2);
+}
+
+.video-js .vjs-load-progress {
+    background: rgba(168, 153, 132, 0.3) !important;
+    border-radius: 5px;
+}
+
+.video-js .vjs-load-progress div {
+    background: rgba(168, 153, 132, 0.5) !important;
+}
+
+/* Timers and Text */
+.video-js .vjs-time-control {
+    color: var(--text-primary) !important;
+    font-size: 13px !important;
+    font-weight: 600;
+    line-height: 48px !important;
+    padding: 0 4px !important;
+}
+
+.video-js .vjs-time-divider {
+    padding: 0 2px !important;
+    line-height: 48px !important;
+    color: var(--text-secondary);
+}
+
+/* Icons */
+.video-js .vjs-control {
+    width: 40px !important;
+}
+
+.video-js .vjs-button > .vjs-icon-placeholder:before {
+    line-height: 48px !important;
+    transition: color 0.2s, transform 0.2s;
+}
+
+.video-js .vjs-button:hover > .vjs-icon-placeholder:before {
+    color: var(--brand-color) !important;
+    transform: scale(1.1);
+}
+
+/* Custom Download Button Styling */
+.vjs-control-bar > button[title="Download Video"] .vjs-icon-placeholder {
+    color: var(--accent) !important;
+}
+.vjs-control-bar > button[title="Download Video"]:hover .vjs-icon-placeholder {
+    color: var(--brand-color) !important;
+}
+
+/* Menus (Playback Rate, etc) */
+.video-js .vjs-menu-button-popup .vjs-menu .vjs-menu-content {
+    background: rgba(60, 56, 54, 0.9) !important;
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+    padding: 5px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    bottom: 15px;
+}
+
+.video-js .vjs-menu li {
+    border-radius: 4px;
+    font-size: 13px;
+    text-transform: none;
+    font-weight: 600;
+    padding: 8px 15px;
+    margin: 2px 0;
+    transition: background 0.2s, color 0.2s;
+}
+
+.video-js .vjs-menu li.vjs-selected, 
+.video-js .vjs-menu li:focus, 
+.video-js .vjs-menu li:hover {
+    background-color: var(--brand-color) !important;
+    color: var(--bg-main) !important;
+}

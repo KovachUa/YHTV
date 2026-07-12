@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import json
 import os
+import time
+import asyncio
 import yt_dlp
 
 from database import init_db, get_db
@@ -31,25 +33,66 @@ DEFAULT_CONFIG = {
     "retries": "10", "file-access-retries": "3", "fragment-retries": "10",
     "retry-sleep": "", "concurrent-fragments": "1", "buffer-size": "1024",
     "resize-buffer": True, "keep-fragments": False, "xattr-set-filesize": False,
-    "format": "bestvideo+bestaudio/best", "lazy-playlist": False,
+    "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best", "lazy-playlist": False,
     "playlist-random": False, "hls-use-mpegts": False,
     "skip-unavailable-fragments": True, "playlist-start": "",
     "playlist-end": "", "match-title": "", "reject-title": "",
     "max-downloads": "", "min-filesize": "", "max-filesize": "",
     "extract-audio": False, "audio-format": "best", "audio-quality": "5",
     "remux-video": "", "embed-subs": False, "embed-thumbnail": False,
-    "embed-metadata": False, "embed-chapters": False, "write-auto-subs": False,
-    "sub-langs": "en", "paths": "./downloads", "output": "%(title)s.%(ext)s",
+    "write-auto-subs": False,
+    "sub-langs": "en", "paths": "./downloads", "output": "%(uploader)s/%(title)s.%(ext)s",
     "restrict-filenames": False, "windows-filenames": False,
     "trim-filenames": "", "no-overwrites": True, "continue": True,
     "write-description": False, "write-info-json": False,
     "write-comments": False,
-    "sponsorblock-remove": "", "sponsorblock-mark": ""
+    "sponsorblock-remove": "", "sponsorblock-mark": "",
+    "auto-cleanup": False
 }
 
+def perform_cleanup():
+    deleted_files = []
+    try:
+        for root, dirs, files in os.walk(DOWNLOADS_DIR, topdown=False):
+            for name in files:
+                filepath = os.path.join(root, name)
+                if name.endswith('.part') or name.endswith('.ytdl'):
+                    if time.time() - os.path.getmtime(filepath) > 86400:
+                        try:
+                            os.remove(filepath)
+                            deleted_files.append(filepath)
+                        except: pass
+                elif name.endswith('.info.json') or name.endswith('.description') or name.endswith('.jpg') or name.endswith('.webp'):
+                    base = name.rsplit('.', 2)[0] if name.endswith('.info.json') else name.rsplit('.', 1)[0]
+                    has_media = any(os.path.exists(os.path.join(root, base + ext)) for ext in ['.mp4', '.mkv', '.webm', '.m4a'])
+                    if not has_media:
+                        try:
+                            os.remove(filepath)
+                            deleted_files.append(filepath)
+                        except: pass
+            
+            for name in dirs:
+                dirpath = os.path.join(root, name)
+                if not os.listdir(dirpath):
+                    try:
+                        os.rmdir(dirpath)
+                        deleted_files.append(dirpath)
+                    except: pass
+    except Exception as e:
+        print(f"Cleanup error: {e}")
+    return deleted_files
+
+async def cleanup_worker():
+    while True:
+        await asyncio.sleep(3600)  # Every hour
+        config = load_config()
+        if config.get("auto-cleanup", False):
+            perform_cleanup()
+
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     init_db()
+    asyncio.create_task(cleanup_worker())
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -228,13 +271,16 @@ async def get_channels(db: Session = Depends(get_db)):
 async def delete_video(video_id: str, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
     if video:
-        if video.file_path and os.path.exists(video.file_path):
-            try:
-                os.remove(video.file_path)
-            except:
-                pass
+        if video.file_path:
+            full_path = os.path.join(DOWNLOADS_DIR, video.file_path)
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                except:
+                    pass
         db.delete(video)
         db.commit()
+        perform_cleanup()
     return {"status": "success"}
 
 @app.delete("/api/channels/{channel_id}")
@@ -244,13 +290,22 @@ async def delete_channel(channel_id: str, db: Session = Depends(get_db)):
         # Delete associated videos as well
         videos = db.query(Video).filter(Video.channel_id == channel_id).all()
         for v in videos:
-            if v.file_path and os.path.exists(v.file_path):
-                try: os.remove(v.file_path)
-                except: pass
+            if v.file_path:
+                full_path = os.path.join(DOWNLOADS_DIR, v.file_path)
+                if os.path.exists(full_path):
+                    try: os.remove(full_path)
+                    except: pass
             db.delete(v)
         db.delete(channel)
         db.commit()
+        # Also clean up empty directories and orphaned metadata
+        perform_cleanup()
     return {"status": "success"}
+
+@app.post("/api/cleanup")
+async def manual_cleanup():
+    deleted = perform_cleanup()
+    return {"status": "success", "deleted_count": len(deleted), "deleted_files": deleted}
 
 @app.get("/api/channels/{channel_id}/browse")
 async def browse_channel(channel_id: str, db: Session = Depends(get_db)):
@@ -259,41 +314,56 @@ async def browse_channel(channel_id: str, db: Session = Depends(get_db)):
         return JSONResponse(status_code=404, content={"message": "Channel not found"})
         
     if channel_id.startswith('@'):
-        url = f"https://www.youtube.com/{channel_id}/videos"
+        base_url = f"https://www.youtube.com/{channel_id}"
     elif channel_id.startswith('UC'):
-        url = f"https://www.youtube.com/channel/{channel_id}/videos"
+        base_url = f"https://www.youtube.com/channel/{channel_id}"
     else:
-        url = f"https://www.youtube.com/c/{channel_id}/videos"
+        base_url = f"https://www.youtube.com/c/{channel_id}"
         
     ydl_opts = {
         'quiet': True,
         'extract_flat': 'in_playlist',
-        'playlistend': 30, # Get last 30 videos
+        'playlistend': 30, # Get last 30 items
         'no_warnings': True
     }
+    
+    videos = []
+    shorts = []
+    streams = []
+    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            entries = info.get('entries', [])
+            for suffix in ["/videos", "/shorts", "/streams"]:
+                try:
+                    info = ydl.extract_info(base_url + suffix, download=False)
+                    entries = info.get('entries', [])
+                    
+                    for entry in entries:
+                        if entry:
+                            vid_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
+                            thumbnail = f"https://img.youtube.com/vi/{entry.get('id')}/hqdefault.jpg"
+                            if entry.get('thumbnails'):
+                                thumbnail = entry['thumbnails'][-1].get('url', thumbnail)
+                                
+                            item = {
+                                "id": entry.get('id'),
+                                "title": entry.get('title'),
+                                "url": vid_url,
+                                "duration": entry.get('duration'),
+                                "view_count": entry.get('view_count'),
+                                "thumbnail": thumbnail,
+                                "type": suffix.strip("/")
+                            }
+                            if suffix == "/videos":
+                                videos.append(item)
+                            elif suffix == "/shorts":
+                                shorts.append(item)
+                            elif suffix == "/streams":
+                                streams.append(item)
+                except Exception:
+                    pass # Ignore if a channel doesn't have a specific tab
             
-            videos = []
-            for entry in entries:
-                if entry:
-                    # extract_flat sometimes returns url, sometimes not. ID is always there.
-                    vid_url = entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
-                    thumbnail = f"https://img.youtube.com/vi/{entry.get('id')}/hqdefault.jpg"
-                    if entry.get('thumbnails'):
-                        thumbnail = entry['thumbnails'][-1].get('url', thumbnail)
-                        
-                    videos.append({
-                        "id": entry.get('id'),
-                        "title": entry.get('title'),
-                        "url": vid_url,
-                        "duration": entry.get('duration'),
-                        "view_count": entry.get('view_count'),
-                        "thumbnail": thumbnail
-                    })
-            return {"status": "success", "videos": videos}
+            return {"status": "success", "videos": videos, "shorts": shorts, "streams": streams}
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"Error browsing channel: {str(e)}"})
 

@@ -270,6 +270,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const allVideos = await res.json();
                     const channelVideos = allVideos.filter(v => v.channel_id === channelId);
                     const container = document.getElementById('single-channel-videos-container');
+                    
+                    
                     if (container) {
                         if (channelVideos.length === 0) {
                             container.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No videos downloaded yet.</p>';
@@ -290,47 +292,64 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                     
-                    const availableContainer = document.getElementById('single-channel-available-container');
                     const loadingIndicator = document.getElementById('channel-loading-indicator');
-                    if (availableContainer && loadingIndicator) {
-                        availableContainer.innerHTML = '';
+                    
+                    const remoteContainers = {
+                        videos: document.getElementById('remote-videos-container'),
+                        shorts: document.getElementById('remote-shorts-container'),
+                        streams: document.getElementById('remote-streams-container')
+                    };
+                    
+                    if (loadingIndicator) {
+                        for (const key in remoteContainers) {
+                            if (remoteContainers[key]) remoteContainers[key].innerHTML = '';
+                        }
                         loadingIndicator.classList.remove('hidden');
+                        
                         try {
                             const browseRes = await fetch('/api/channels/' + channelId + '/browse');
                             loadingIndicator.classList.add('hidden');
                             if (browseRes.ok) {
                                 const data = await browseRes.json();
-                                if (data.status === 'success' && data.videos) {
-                                    const downloadedIds = new Set(channelVideos.map(v => v.id));
-                                    const availableVideos = data.videos.filter(v => !downloadedIds.has(v.id));
-
-                                    if (availableVideos.length === 0) {
-                                        availableContainer.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No new videos found.</p>';
-                                    } else {
-                                        availableContainer.innerHTML = availableVideos.map(v => {
-                                            const durMinutes = v.duration ? Math.floor(v.duration / 60) + ':' + (v.duration % 60).toString().padStart(2, '0') : 'N/A';
-                                            return `
-                                            <div class="video-card">
-                                                <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
-                                                    <span class="video-duration">${durMinutes}</span>
-                                                </div>
-                                                <div class="video-info" style="padding-bottom: 0;">
-                                                    <h4 class="video-title">${v.title || 'Unknown Title'}</h4>
-                                                    <p class="video-meta">${v.view_count ? v.view_count.toLocaleString() + ' views' : ''}</p>
-                                                </div>
-                                                <div style="padding: 10px; display: flex; gap: 5px;">
-                                                    <button class="btn btn-primary download-available-btn" data-url="${v.url}" style="flex: 1; border-radius: 4px; padding: 6px;">Завантажити</button>
-                                                </div>
-                                            </div>`;
-                                        }).join('');
+                                if (data.status === 'success') {
+                                    const downloadedIds = new Set(allVideos.map(v => v.id));
+                                    
+                                    for (const type of ['videos', 'shorts', 'streams']) {
+                                        const container = remoteContainers[type];
+                                        if (!container || !data[type]) continue;
+                                        
+                                        const available = data[type].filter(v => !downloadedIds.has(v.id));
+                                        if (available.length === 0) {
+                                            container.innerHTML = '<p style="padding: 20px; color: var(--text-secondary);">No items found.</p>';
+                                        } else {
+                                            container.innerHTML = available.map(v => {
+                                                const h = v.duration ? Math.floor(v.duration / 3600) : 0;
+                                                const m = v.duration ? Math.floor((v.duration % 3600) / 60) : 0;
+                                                const s = v.duration ? Math.floor(v.duration % 60) : 0;
+                                                const durMinutes = v.duration ? (h > 0 ? h + ':' + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0') : m + ':' + s.toString().padStart(2, '0')) : 'N/A';
+                                                return `
+                                                <div class="video-card">
+                                                    <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
+                                                        <span class="video-duration">${durMinutes}</span>
+                                                    </div>
+                                                    <div class="video-info" style="padding-bottom: 0;">
+                                                        <h4 class="video-title">${v.title || 'Unknown Title'}</h4>
+                                                        <p class="video-meta">${v.view_count ? v.view_count.toLocaleString() + ' views' : ''}</p>
+                                                    </div>
+                                                    <div style="padding: 10px; display: flex; gap: 5px;">
+                                                        <button class="btn btn-primary download-available-btn" data-url="${v.url}" style="flex: 1; border-radius: 4px; padding: 6px;">Завантажити</button>
+                                                    </div>
+                                                </div>`;
+                                            }).join('');
+                                        }
                                     }
                                 }
                             } else {
-                                availableContainer.innerHTML = '<p style="padding: 20px; color: var(--danger-color);">Failed to load available videos.</p>';
+                                if (remoteContainers.videos) remoteContainers.videos.innerHTML = '<p style="padding: 20px; color: var(--danger-color);">Failed to load data.</p>';
                             }
                         } catch(err) {
                             loadingIndicator.classList.add('hidden');
-                            availableContainer.innerHTML = '<p style="padding: 20px; color: var(--danger-color);">Error connecting to server.</p>';
+                            if (remoteContainers.videos) remoteContainers.videos.innerHTML = '<p style="padding: 20px; color: var(--danger-color);">Error connecting to server.</p>';
                         }
                     }
                 }
@@ -347,10 +366,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Логіка для кнопок підписки / відписки
     document.addEventListener('click', async (e) => {
-        // Download all available videos from channel
-        if (e.target.closest('#download-all-channel-btn')) {
-            const btn = e.target.closest('#download-all-channel-btn');
-            const availableBtns = document.querySelectorAll('#single-channel-available-container .download-available-btn:not([disabled])');
+        // Download all buttons
+        if (e.target.id === 'download-all-videos-btn' || e.target.id === 'download-all-shorts-btn' || e.target.id === 'download-all-streams-btn') {
+            const btn = e.target;
+            const containerId = btn.id.replace('download-all-', 'remote-').replace('-btn', '-container');
+            const availableBtns = document.querySelectorAll(`#${containerId} .download-available-btn:not([disabled])`);
             
             if (availableBtns.length > 0) {
                 const currentLang = localStorage.getItem('yhtvLang') || 'en';
@@ -548,20 +568,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let vjsPlayer = null;
+
     document.addEventListener('click', (e) => {
         // Close Video Player Modal
         const closePlayerBtn = e.target.closest('#close-player-btn');
         const isPlayerOverlayClick = e.target.id === 'player-modal';
         if (closePlayerBtn || isPlayerOverlayClick) {
             const playerModal = document.getElementById('player-modal');
-            const mainVideoPlayer = document.getElementById('main-video-player');
             if(playerModal) playerModal.classList.remove('active');
-            if(mainVideoPlayer) {
+            
+            if (vjsPlayer) {
                 if (window.currentVideoPath) {
-                    localStorage.setItem('vid_pos_' + window.currentVideoPath, mainVideoPlayer.currentTime);
+                    localStorage.setItem('vid_pos_' + window.currentVideoPath, vjsPlayer.currentTime());
                 }
-                mainVideoPlayer.pause();
+                vjsPlayer.dispose();
+                vjsPlayer = null;
             }
+            window.currentVideoPath = null;
             return;
         }
 
@@ -570,10 +594,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (videoCard && !e.target.closest('.delete-btn') && !e.target.closest('button')) {
             const titleEl = videoCard.querySelector('.video-title') || videoCard.querySelector('.queue-title');
             const playerModal = document.getElementById('player-modal');
-            const mainVideoPlayer = document.getElementById('main-video-player');
             const playerTitle = document.getElementById('player-title');
             
-            if (playerModal && mainVideoPlayer && titleEl) {
+            if (playerModal && titleEl) {
                 const filePath = videoCard.getAttribute('data-file-path');
                 if (!filePath) return;
 
@@ -581,24 +604,123 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let type = 'video/mp4';
                 if (filePath.toLowerCase().endsWith('.webm')) type = 'video/webm';
-                else if (filePath.toLowerCase().endsWith('.mkv')) type = 'video/x-matroska';
+                else if (filePath.toLowerCase().endsWith('.mkv')) type = 'video/mp4'; // vjs fallback
                 
-                const isSameVideo = window.currentVideoPath === filePath;
                 window.currentVideoPath = filePath;
                 
-                if (!isSameVideo) {
-                    mainVideoPlayer.innerHTML = `<source src="${filePath}" type="${type}">Your browser does not support the video tag.`;
-                    mainVideoPlayer.load();
+                // Recreate video tag container
+                const videoContainer = playerModal.querySelector('.video-container');
+                videoContainer.innerHTML = '';
+                const videoTag = document.createElement('video');
+                videoTag.id = 'main-video-player';
+                videoTag.className = 'video-js vjs-default-skin vjs-big-play-centered';
+                videoTag.controls = true;
+                videoTag.preload = 'auto';
+                videoTag.style.width = '100%';
+                videoTag.style.minHeight = '400px';
+                videoTag.style.maxHeight = '80vh';
+                videoTag.style.outline = 'none';
+                videoTag.style.borderRadius = '12px 12px 0 0';
+                videoTag.style.background = '#000';
+                videoTag.style.cursor = 'pointer';
+                videoContainer.appendChild(videoTag);
+
+                setTimeout(() => {
+                    vjsPlayer = videojs(videoTag, {
+                        controls: true,
+                        fluid: false,
+                        playbackRates: [0.5, 1, 1.25, 1.5, 2]
+                    });
+
+                    // YouTube style time toggle
+                    let showingRemaining = false;
+                    const timeContainer = document.createElement('div');
+                    timeContainer.className = 'vjs-time-control vjs-control custom-time-display';
+                    timeContainer.style.cursor = 'pointer';
+                    timeContainer.style.display = 'flex';
+                    timeContainer.style.alignItems = 'center';
+                    timeContainer.style.userSelect = 'none';
+                    timeContainer.style.padding = '0 10px';
+                    
+                    const formatTime = (seconds) => {
+                        if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
+                        seconds = Math.max(0, Math.floor(seconds));
+                        const h = Math.floor(seconds / 3600);
+                        const m = Math.floor((seconds % 3600) / 60);
+                        const s = seconds % 60;
+                        if (h > 0) return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+                        return `${m}:${s < 10 ? '0' : ''}${s}`;
+                    };
+                    
+                    const updateTimeDisplay = () => {
+                        const current = vjsPlayer.currentTime() || 0;
+                        const duration = vjsPlayer.duration() || 0;
+                        
+                        if (showingRemaining && duration > 0) {
+                            timeContainer.innerHTML = `<span class="vjs-control-text">Remaining Time </span>-${formatTime(duration - current)}`;
+                        } else {
+                            timeContainer.innerHTML = `<span class="vjs-control-text">Current Time </span>${formatTime(current)}<span style="margin: 0 4px; color: var(--text-secondary)">/</span>${formatTime(duration)}`;
+                        }
+                    };
+
+                    timeContainer.addEventListener('click', () => {
+                        showingRemaining = !showingRemaining;
+                        updateTimeDisplay();
+                    });
+
+                    vjsPlayer.on('timeupdate', updateTimeDisplay);
+                    vjsPlayer.on('durationchange', updateTimeDisplay);
+                    vjsPlayer.on('loadedmetadata', updateTimeDisplay);
+                    
+                    if (vjsPlayer.controlBar) {
+                        const hide = (name) => {
+                            const c = vjsPlayer.controlBar.getChild(name);
+                            if (c) c.hide();
+                        };
+                        hide('currentTimeDisplay');
+                        hide('timeDivider');
+                        hide('durationDisplay');
+                        hide('remainingTimeDisplay');
+                        
+                        const refChild = vjsPlayer.controlBar.getChild('currentTimeDisplay');
+                        if (refChild) {
+                            vjsPlayer.controlBar.el().insertBefore(timeContainer, refChild.el());
+                        } else {
+                            vjsPlayer.controlBar.el().appendChild(timeContainer);
+                        }
+                    }
+
+                    // Add a download button safely if it doesn't exist
+                    if (vjsPlayer.controlBar && !vjsPlayer.controlBar.getChild('DownloadBtn')) {
+                        const downloadBtn = vjsPlayer.controlBar.addChild('button', {}, vjsPlayer.controlBar.children_.length - 1);
+                        downloadBtn.name_ = 'DownloadBtn';
+                        downloadBtn.el().innerHTML = '<span class="vjs-icon-placeholder" style="font-size: 1.5em; line-height: 2;">⬇</span>';
+                        downloadBtn.el().title = 'Download Video';
+                        downloadBtn.on('click', function() {
+                            const a = document.createElement('a');
+                            a.href = window.currentVideoPath;
+                            a.download = window.currentVideoPath.split('/').pop();
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        });
+                    }
+
+                    const cacheBustedPath = filePath + "?t=" + new Date().getTime();
+                    vjsPlayer.src({ type: type, src: cacheBustedPath });
                     
                     const savedPos = localStorage.getItem('vid_pos_' + filePath);
                     const timeToSet = savedPos ? parseFloat(savedPos) : 0;
                     
-                    mainVideoPlayer.onloadedmetadata = function() {
-                        mainVideoPlayer.currentTime = timeToSet;
-                    };
-                }
-                
-                setTimeout(() => mainVideoPlayer.play(), 150);
+                    vjsPlayer.ready(function() {
+                        vjsPlayer.one('loadedmetadata', function() {
+                            if (timeToSet > 0) vjsPlayer.currentTime(timeToSet);
+                            vjsPlayer.play().catch(e => console.log("Autoplay blocked", e));
+                        });
+                    });
+                }, 50);
+
+                playerModal.classList.add('active');
                 
                 const videoId = videoCard.dataset.videoId || videoCard.dataset.taskId; // fallback for queue items
                 
@@ -743,6 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
             allVideosView.classList.remove('hidden');
         });
 
+
         navChannels.addEventListener('click', (e) => {
             if (e) e.preventDefault();
             localStorage.setItem('yhtvActiveTab', 'nav-channels');
@@ -768,15 +891,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Відновлення вкладки після оновлення сторінки
-        const savedTab = localStorage.getItem('yhtvActiveTab');
-        if (savedTab === 'nav-queue') {
-            navQueue.click();
-        } else if (savedTab === 'nav-channels') {
-            navChannels.click();
-        } else if (savedTab === 'nav-config') {
-            navConfig.click();
+        const activeTabId = localStorage.getItem('yhtvActiveTab') || 'nav-all';
+        const tabMap = {
+            'nav-all': navAll,
+
+            'nav-channels': navChannels,
+            'nav-queue': navQueue,
+            'nav-config': navConfig
+        };
+        if (tabMap[activeTabId]) {
+            tabMap[activeTabId].click();
         } else {
-            // За замовчуванням All Videos
             navAll.click();
         }
     }
@@ -1208,6 +1333,7 @@ async function fetchVideos() {
     }
 }
 
+
 async function fetchChannels() {
     const res = await fetch('/api/channels');
     if(res.ok) {
@@ -1325,6 +1451,7 @@ document.getElementById('nav-queue')?.addEventListener('click', fetchQueue);
 
 // Attach sorting change listener
 document.getElementById('video-sort-select')?.addEventListener('change', fetchVideos);
+document.getElementById('shorts-sort-select')?.addEventListener('change', fetchShorts);
 
 // Global search button
 document.getElementById('global-search-btn')?.addEventListener('click', () => {
@@ -1333,6 +1460,7 @@ document.getElementById('global-search-btn')?.addEventListener('click', () => {
         window.currentSearchTerm = term.trim().toLowerCase();
         const activeTab = document.querySelector('.nav-item.active');
         if(activeTab?.id === 'nav-all') fetchVideos();
+
         if(activeTab?.id === 'nav-channels') fetchChannels();
     }
 });
@@ -1346,6 +1474,7 @@ setInterval(() => {
 setTimeout(() => {
     const activeTab = document.querySelector('.nav-item.active');
     if(activeTab?.id === 'nav-all') fetchVideos();
+
     if(activeTab?.id === 'nav-channels') fetchChannels();
     if(activeTab?.id === 'nav-queue') fetchQueue();
 }, 500);
@@ -1354,52 +1483,78 @@ setTimeout(() => {
 document.addEventListener('keydown', (e) => {
     const playerModal = document.getElementById('player-modal');
     if (playerModal && playerModal.classList.contains('active')) {
-        const videoPlayer = document.getElementById('video-player');
-        if (videoPlayer && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        if (typeof vjsPlayer !== 'undefined' && vjsPlayer && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
             switch(e.key.toLowerCase()) {
                 case 'arrowright':
                     e.preventDefault();
-                    videoPlayer.currentTime += 5;
+                    vjsPlayer.currentTime(vjsPlayer.currentTime() + 5);
                     break;
                 case 'arrowleft':
                     e.preventDefault();
-                    videoPlayer.currentTime -= 5;
+                    vjsPlayer.currentTime(vjsPlayer.currentTime() - 5);
                     break;
                 case 'l':
                     e.preventDefault();
-                    videoPlayer.currentTime += 10;
+                    vjsPlayer.currentTime(vjsPlayer.currentTime() + 10);
                     break;
                 case 'j':
                     e.preventDefault();
-                    videoPlayer.currentTime -= 10;
+                    vjsPlayer.currentTime(vjsPlayer.currentTime() - 10);
                     break;
                 case 'k':
                 case ' ':
                     e.preventDefault();
-                    if (videoPlayer.paused) videoPlayer.play();
-                    else videoPlayer.pause();
+                    if (vjsPlayer.paused()) vjsPlayer.play();
+                    else vjsPlayer.pause();
                     break;
                 case 'f':
                     e.preventDefault();
-                    if (document.fullscreenElement) {
-                        document.exitFullscreen();
+                    if (vjsPlayer.isFullscreen()) {
+                        vjsPlayer.exitFullscreen();
                     } else {
-                        videoPlayer.requestFullscreen().catch(err => console.error(err));
+                        vjsPlayer.requestFullscreen();
                     }
                     break;
                 case 'm':
                     e.preventDefault();
-                    videoPlayer.muted = !videoPlayer.muted;
+                    vjsPlayer.muted(!vjsPlayer.muted());
                     break;
                 case 'arrowup':
                     e.preventDefault();
-                    videoPlayer.volume = Math.min(1, videoPlayer.volume + 0.05);
+                    vjsPlayer.volume(Math.min(1, vjsPlayer.volume() + 0.05));
                     break;
                 case 'arrowdown':
                     e.preventDefault();
-                    videoPlayer.volume = Math.max(0, videoPlayer.volume - 0.05);
+                    vjsPlayer.volume(Math.max(0, vjsPlayer.volume() - 0.05));
                     break;
             }
         }
     }
 });
+
+// Manual cleanup logic
+document.getElementById('manual-cleanup-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('manual-cleanup-btn');
+    const status = document.getElementById('cleanup-status');
+    btn.disabled = true;
+    status.textContent = 'Очищення...';
+    try {
+        const res = await fetch('/api/cleanup', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            status.textContent = `Готово! Видалено файлів/папок: ${data.deleted_count}`;
+            status.style.color = 'var(--primary-color)';
+        } else {
+            status.textContent = 'Помилка очищення';
+            status.style.color = 'var(--danger-color)';
+        }
+    } catch(e) {
+        status.textContent = 'Помилка мережі';
+        status.style.color = 'var(--danger-color)';
+    }
+    setTimeout(() => {
+        btn.disabled = false;
+        setTimeout(() => status.textContent = '', 5000);
+    }, 1000);
+});
+
