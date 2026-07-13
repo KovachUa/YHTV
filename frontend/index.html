@@ -483,6 +483,10 @@
                                 <label for="auto-cleanup" title="Автоматично видаляти сміття та зламані файли">Auto-cleanup trash and broken files</label>
                             </div>
                             <div class="form-group">
+                                <label for="auto-refresh-interval" title="How often to check for new channel videos">Auto-refresh Interval (hours)</label>
+                                <input type="number" id="auto-refresh-interval" name="auto-refresh-interval" placeholder="1" step="0.5" min="0.5">
+                            </div>
+                            <div class="form-group">
                                 <button type="button" class="btn btn-secondary" id="manual-cleanup-btn" style="width: auto;">Run Cleanup Now</button>
                                 <span id="cleanup-status" style="margin-left: 10px; font-size: 14px;"></span>
                             </div>

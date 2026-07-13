@@ -96,11 +96,14 @@ async def cleanup_worker():
 async def channel_refresh_worker():
     while True:
         try:
+            config = load_config()
+            interval_hours = float(config.get("auto-refresh-interval", 1.0))
+            
             db = SessionLocal()
-            one_hour_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=1)
+            time_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=interval_hours)
             channel = db.query(Channel).filter(
                 Channel.subscribed == True,
-                (Channel.last_refreshed < one_hour_ago) | (Channel.last_refreshed == None)
+                (Channel.last_refreshed < time_ago) | (Channel.last_refreshed == None)
             ).order_by(Channel.last_refreshed.asc()).first()
             
             channel_id = channel.id if channel else None
@@ -225,7 +228,7 @@ async def add_channel_only(req: ChannelAddRequest, db: Session = Depends(get_db)
                     description=description,
                     banner=banner,
                     avatar=avatar,
-                    subscribed=True
+                    subscribed=False
                 )
                 db.add(db_channel)
             else:
@@ -242,6 +245,8 @@ async def toggle_subscribe(channel_id: str, req: SubscribeRequest, db: Session =
     channel = db.query(Channel).filter(Channel.id == channel_id).first()
     if channel:
         channel.subscribed = req.subscribed
+        if req.subscribed:
+            channel.last_refreshed = None
         db.commit()
     return {"status": "success"}
 
@@ -441,6 +446,32 @@ def fetch_and_update_channel(channel_id: str):
         except:
             pass
             
+        if channel.subscribed:
+            from models import Video, DownloadTask
+            from tasks import download_video_task
+            for item in videos + shorts:
+                vid_id = item.get('id')
+                vid_url = item.get('url')
+                if vid_id and vid_url:
+                    existing = db.query(Video).filter(Video.id == vid_id).first()
+                    if not existing:
+                        existing_task = db.query(DownloadTask).filter(DownloadTask.url == vid_url, DownloadTask.status.in_(["QUEUED", "DOWNLOADING", "COMPLETED"])).first()
+                        if not existing_task:
+                            # Pre-create the task record without task_id (we'll update it later or just let Celery create it)
+                            # Actually, download_video_task expects to find DownloadTask by task_id.
+                            # We can run delay(), get the task_id, and THEN save DownloadTask!
+                            # Since we don't have request here, we load config:
+                            config = load_config()
+                            if channel.settings:
+                                try:
+                                    config.update(json.loads(channel.settings))
+                                except: pass
+                                
+                            celery_task = download_video_task.delay(vid_url, config)
+                            new_task = DownloadTask(task_id=celery_task.id, url=vid_url, status="QUEUED")
+                            db.add(new_task)
+                            db.commit()
+                            
         result = {
             "status": "success",
             "videos": videos,

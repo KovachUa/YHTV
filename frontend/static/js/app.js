@@ -227,6 +227,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 singleChannelView.querySelector('.channel-avatar-large').src = avatarSrc;
                 singleChannelView.querySelector('.channel-details-large h2').textContent = channelName;
                 
+                const isSubscribed = card.dataset.subscribed === 'true';
+                const headerSubscribeBtn = singleChannelView.querySelector('.btn-subscribe, .btn-unsubscribe');
+                if (headerSubscribeBtn) {
+                    const currentLang = localStorage.getItem('yhtvLang') || 'en';
+                    if (isSubscribed) {
+                        headerSubscribeBtn.classList.remove('btn-subscribe');
+                        headerSubscribeBtn.classList.add('btn-unsubscribe');
+                        headerSubscribeBtn.textContent = currentLang === 'uk' ? 'Відписатися' : 'Unsubscribe';
+                    } else {
+                        headerSubscribeBtn.classList.remove('btn-unsubscribe');
+                        headerSubscribeBtn.classList.add('btn-subscribe');
+                        headerSubscribeBtn.textContent = currentLang === 'uk' ? 'Підписатися' : 'Subscribe';
+                    }
+                }
+                
                 let descContainer = singleChannelView.querySelector('.channel-desc-container');
                 if (!descContainer) {
                     descContainer = document.createElement('div');
@@ -340,6 +355,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const data = await browseRes.json();
                                 if (data.status === 'success') {
                                     const downloadedIds = new Set(allVideos.map(v => v.id));
+                                    
+                                    // Move any shorts mixed into the videos array into the shorts array
+                                    if (data.videos) {
+                                        const trueVideos = [];
+                                        const mixedShorts = [];
+                                        data.videos.forEach(v => {
+                                            if (isShort(v)) {
+                                                mixedShorts.push(v);
+                                            } else {
+                                                trueVideos.push(v);
+                                            }
+                                        });
+                                        data.videos = trueVideos;
+                                        if (!data.shorts) data.shorts = [];
+                                        data.shorts.push(...mixedShorts);
+                                    }
                                     
                                     for (const type of ['videos', 'shorts', 'streams']) {
                                         const container = remoteContainers[type];
@@ -537,18 +568,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (e.target.classList.contains('btn-subscribe') || e.target.classList.contains('btn-unsubscribe')) {
-            const btn = e.target;
+        const subBtn = e.target.closest('.btn-subscribe, .btn-unsubscribe');
+        if (subBtn) {
+            const btn = subBtn;
             const isSubscribed = btn.classList.contains('btn-unsubscribe');
             
             const parentCard = btn.closest('.card');
-            if (parentCard) {
-                const channelId = parentCard.dataset.channelId;
-                if (!channelId) return;
+            let channelId = parentCard ? parentCard.dataset.channelId : null;
+            
+            if (!channelId && window.currentChannelId) {
+                channelId = window.currentChannelId;
+            }
+            
+            if (!channelId) return;
                 
                 btn.disabled = true;
                 const origText = btn.textContent;
-                btn.textContent = 'Updating...';
+                const currentLang = localStorage.getItem('yhtvLang') || 'en';
+                btn.textContent = currentLang === 'uk' ? 'Оновлення...' : 'Updating...';
 
                 try {
                     const res = await fetch('/api/channels/' + channelId + '/subscribe', {
@@ -561,18 +598,30 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (isSubscribed) {
                             btn.classList.remove('btn-unsubscribe');
                             btn.classList.add('btn-subscribe');
-                            btn.textContent = 'Subscribe';
+                            btn.textContent = currentLang === 'uk' ? 'Підписатися' : 'Subscribe';
                         } else {
                             btn.classList.remove('btn-subscribe');
                             btn.classList.add('btn-unsubscribe');
-                            btn.textContent = 'Unsubscribe';
+                            btn.textContent = currentLang === 'uk' ? 'Відписатися' : 'Unsubscribe';
                         }
                         
-                        parentCard.setAttribute('data-subscribed', (!isSubscribed).toString());
                         
-                        const subscribedToggle = document.getElementById('subscribed-toggle');
-                        if (subscribedToggle && subscribedToggle.checked && isSubscribed) {
-                            parentCard.classList.add('hidden');
+                        if (parentCard) {
+                            parentCard.setAttribute('data-subscribed', (!isSubscribed).toString());
+                            const subscribedToggle = document.getElementById('subscribed-toggle');
+                            if (subscribedToggle && subscribedToggle.checked && isSubscribed) {
+                                parentCard.classList.add('hidden');
+                            }
+                        } else {
+                            // Also update the card in the channels list so it stays in sync
+                            const listCard = document.querySelector(`.card[data-channel-id="${channelId}"]`);
+                            if (listCard) {
+                                listCard.setAttribute('data-subscribed', (!isSubscribed).toString());
+                                const subscribedToggle = document.getElementById('subscribed-toggle');
+                                if (subscribedToggle && subscribedToggle.checked && isSubscribed) {
+                                    listCard.classList.add('hidden');
+                                }
+                            }
                         }
                     } else {
                         btn.textContent = 'Error';
@@ -584,7 +633,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } finally {
                     btn.disabled = false;
                 }
-            }
         }
     });
 
