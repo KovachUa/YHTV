@@ -83,8 +83,7 @@ def download_video_task(self, url: str, config: dict):
     # Tube Archivist optimized format for max compatibility:
     # Force MP4 compatible codecs! If yt-dlp puts Opus audio in an MP4 container, Chrome hangs indefinitely!
     ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
-    # Bypass HTTP 403 Forbidden by trying web, tv and default clients, and explicitly disabling android_sdkless
-    ydl_opts['extractor_args'] = {'youtube': ['player_client=web_embedded,web,tv,default,-android_sdkless']}
+    ydl_opts['extractor_args'] = {'youtube': ['player_client=ios,web,tv,default']}
     # Guarantee moov atom is at the start of the MP4 so browsers can seek immediately
     ydl_opts['postprocessor_args'] = {'video': ['-movflags', '+faststart']}
     

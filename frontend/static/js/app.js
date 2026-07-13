@@ -1,3 +1,6 @@
+import { formatDurationDisplay, parseDuration, isShort, saveQueueState } from './utils.js';
+import { initConfig } from './config.js';
+
 // Global state for optimistic UI (persisted in localStorage)
 let savedState = { paused: [], deleted: [] };
 try {
@@ -8,27 +11,6 @@ try {
 window.localQueueState = {
     paused: new Set(savedState.paused),
     deleted: new Set(savedState.deleted)
-};
-
-function saveQueueState() {
-    localStorage.setItem('yhtvQueueState', JSON.stringify({
-        paused: Array.from(window.localQueueState.paused),
-        deleted: Array.from(window.localQueueState.deleted)
-    }));
-}
-
-// Helper to determine if a video is a Short
-window.isShort = function(v) {
-    if (!v.duration) return false;
-    let parts = String(v.duration).split(':');
-    if (parts.length === 1) {
-        // Just seconds
-        return parseInt(parts[0]) < 120;
-    } else if (parts.length === 2) {
-        // Minutes:Seconds
-        return parseInt(parts[0]) < 2;
-    }
-    return false; // Hours:Minutes:Seconds is definitely not a short
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -312,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const renderLocalCard = (v) => `
                         <div class="video-card ${v.watched ? 'watched' : ''}" data-video-id="${v.id}" data-file-path="${v.file_path || ''}" data-progress="${v.progress || 0}" data-watched="${v.watched || false}">
                             <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
-                                <span class="video-duration">${v.duration || 'N/A'}</span>
+                                <span class="video-duration">${formatDurationDisplay(v.duration)}</span>
                                 <div class="watched-badge" style="position:absolute; top:5px; left:5px; background:var(--bg-surface); color:var(--text-primary); padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Downloaded</div>
                                 ${v.watched ? '<div class="watched-badge" style="position:absolute; top:5px; right:5px; background:var(--btn-danger); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Переглянуто</div>' : ''}
                                 ${!v.watched && v.progress > 0 ? `<div class="progress-bar-container" style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.3);"><div style="height:100%; background:var(--btn-danger); width:${(v.progress / (v.duration ? parseInt(v.duration.split(':').reduce((acc,time) => (60 * acc) + +time)) : 1)) * 100}%;"></div></div>` : ''}
@@ -385,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 const h = v.duration ? Math.floor(v.duration / 3600) : 0;
                                                 const m = v.duration ? Math.floor((v.duration % 3600) / 60) : 0;
                                                 const s = v.duration ? Math.floor(v.duration % 60) : 0;
-                                                const durMinutes = v.duration ? (h > 0 ? h + ':' + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0') : m + ':' + s.toString().padStart(2, '0')) : 'N/A';
+                                                const durMinutes = v.duration ? (h > 0 ? h + ':' + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0') : m + ':' + s.toString().padStart(2, '0')) : (type === 'shorts' ? 'Short' : 'N/A');
                                                 return `
                                                 <div class="video-card">
                                                     <div class="video-thumbnail" style="background-image: url('${v.thumbnail || ''}');">
@@ -875,7 +857,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         
                         // Sync progress to backend every 5 seconds
-                        if (window.currentVideoId && duration > 0 && Math.abs(current - lastProgressSync) > 5) {
+                        if (window.currentVideoId && Math.abs(current - lastProgressSync) > 5) {
                             lastProgressSync = current;
                             fetch('/api/videos/' + window.currentVideoId + '/progress', {
                                 method: 'POST',
@@ -956,7 +938,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     vjsPlayer.src({ type: type, src: cacheBustedPath });
                     
                     const startVideo = () => {
-                        if (timeToSet > 0 && timeToSet < vjsPlayer.duration()) {
+                        const dur = vjsPlayer.duration();
+                        if (timeToSet > 0 && (!dur || isNaN(dur) || timeToSet < dur)) {
                             vjsPlayer.currentTime(timeToSet);
                         }
                         vjsPlayer.play().catch(e => console.log("Autoplay blocked", e));
@@ -1364,172 +1347,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CONFIG API LOGIC ---
-    const configForm = document.getElementById('yt-dlp-config-form');
-    const saveConfigBtn = document.getElementById('save-config-btn');
-    const resetConfigBtn = document.getElementById('reset-config-btn');
-
-    // Populate form with data
-    function populateConfigForm(data) {
-        if (!configForm) return;
-        for (const key in data) {
-            const input = configForm.elements[key];
-            if (input) {
-                if (input.type === 'checkbox') {
-                    input.checked = data[key];
-                } else {
-                    input.value = data[key];
-                }
-            }
-        }
-    }
-
-    // Gather data from form
-    function gatherConfigForm() {
-        if (!configForm) return {};
-        const data = {};
-        const formData = new FormData(configForm);
-        // Text inputs
-        for (let [key, value] of formData.entries()) {
-            data[key] = value;
-        }
-        // Checkboxes (FormData omits unchecked checkboxes)
-        configForm.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            data[cb.name] = cb.checked;
-        });
-        return data;
-    }
-
-    // Load configuration on startup
-    async function loadConfig() {
-        try {
-            const res = await fetch('/api/config');
-            if (res.ok) {
-                const data = await res.json();
-                populateConfigForm(data);
-            }
-        } catch (err) {
-            console.error('Failed to load config:', err);
-        }
-    }
-
-    // Save configuration
-    async function saveConfig() {
-        const data = gatherConfigForm();
-        try {
-            const res = await fetch('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            if (res.ok) {
-                // Show success feedback
-                const origText = saveConfigBtn.textContent;
-                saveConfigBtn.textContent = 'Saved!';
-                saveConfigBtn.style.backgroundColor = 'var(--accent)';
-                setTimeout(() => {
-                    saveConfigBtn.textContent = origText;
-                    saveConfigBtn.style.backgroundColor = '';
-                }, 2000);
-            }
-        } catch (err) {
-            console.error('Failed to save config:', err);
-        }
-    }
-
-    // Reset configuration to defaults
-    async function resetConfig() {
-        if (!confirm('Are you sure you want to reset all settings to defaults?')) return;
-        try {
-            const res = await fetch('/api/config/default');
-            if (res.ok) {
-                const data = await res.json();
-                populateConfigForm(data);
-                // Also save it to the server automatically
-                await saveConfig();
-            }
-        } catch (err) {
-            console.error('Failed to load default config:', err);
-        }
-    }
-
-    if (saveConfigBtn) saveConfigBtn.addEventListener('click', saveConfig);
-    if (resetConfigBtn) resetConfigBtn.addEventListener('click', resetConfig);
-
-    // Profiles
-    const profiles = {
-        'max': {
-            'format': 'bestvideo+bestaudio/best',
-            'extract-audio': false,
-            'write-description': true,
-            'write-info-json': true,
-            'write-comments': true,
-            'embed-subs': true,
-            'embed-thumbnail': true,
-            'embed-chapters': true
-        },
-        'optimal': {
-            'format': 'bestvideo[height<=1080]+bestaudio/best',
-            'extract-audio': false,
-            'write-description': false,
-            'write-info-json': false,
-            'write-comments': false,
-            'embed-subs': false,
-            'embed-thumbnail': false,
-            'embed-chapters': false
-        },
-        'fast': {
-            'format': 'bestvideo[height<=720]+bestaudio/best',
-            'extract-audio': false,
-            'write-description': false,
-            'write-info-json': false,
-            'write-comments': false,
-            'embed-subs': false,
-            'embed-thumbnail': false,
-            'embed-chapters': false
-        },
-        'audio': {
-            'extract-audio': true,
-            'audio-format': 'mp3',
-            'audio-quality': '0',
-            'format': 'bestaudio/best',
-            'embed-thumbnail': true
-        }
-    };
-
-    document.querySelectorAll('.profile-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-            const profileKey = e.target.dataset.profile;
-            const changes = profiles[profileKey];
-            if (!changes) return;
-            
-            for (const [k, v] of Object.entries(changes)) {
-                const el = configForm.elements[k];
-                if (el) {
-                    if (el.type === 'checkbox') el.checked = v;
-                    else el.value = v;
-                }
-            }
-            
-            const origText = e.target.textContent;
-            e.target.textContent = 'Застосовано!';
-            setTimeout(() => e.target.textContent = origText, 1500);
-            
-            await saveConfig();
-        });
-    });
-
-    // Call loadConfig initially
-    loadConfig();
+    initConfig();
 
 
-// Helper for duration parsing
-function parseDuration(durStr) {
-    if (!durStr) return 0;
-    const parts = durStr.split(':').map(Number);
-    if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
-    if (parts.length === 2) return parts[0]*60 + parts[1];
-    return parts[0] || 0;
-}
+
 
 window.currentSearchTerm = '';
 
@@ -1570,7 +1391,7 @@ async function fetchVideos() {
                         return `
                             <div class="video-card ${v.watched ? 'watched' : ''}" data-video-id="${v.id}" data-file-path="${safePath}" data-progress="${v.progress || 0}" data-watched="${v.watched || false}">
                                 <div class="video-thumbnail" style="background-image: url('${safeThumb}');">
-                                    <span class="video-duration">${v.duration || 'N/A'}</span>
+                                    <span class="video-duration">${formatDurationDisplay(v.duration)}</span>
                                     ${v.watched ? '<div class="watched-badge" style="position:absolute; top:5px; left:5px; background:var(--btn-danger); color:#fff; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">Переглянуто</div>' : ''}
                                     ${!v.watched && v.progress > 0 ? `<div class="progress-bar-container" style="position:absolute; bottom:0; left:0; width:100%; height:4px; background:rgba(255,255,255,0.3);"><div style="height:100%; background:var(--btn-danger); width:${(v.progress / (v.duration ? parseInt(v.duration.split(':').reduce((acc,time) => (60 * acc) + +time)) : 1)) * 100}%;"></div></div>` : ''}
                                 </div>

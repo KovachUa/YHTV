@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Install ffmpeg for yt-dlp video processing, plus curl/unzip to install Deno (needed for YouTube JS challenges), and git for python packages
 RUN apt-get update && apt-get install -y ffmpeg curl unzip git && rm -rf /var/lib/apt/lists/*

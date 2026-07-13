@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -241,13 +241,19 @@ async def add_channel_only(req: ChannelAddRequest, db: Session = Depends(get_db)
         return JSONResponse(status_code=500, content={"message": f"Error: {str(e)}"})
 
 @app.post("/api/channels/{channel_id}/subscribe")
-async def toggle_subscribe(channel_id: str, req: SubscribeRequest, db: Session = Depends(get_db)):
+async def toggle_subscribe(channel_id: str, req: SubscribeRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     channel = db.query(Channel).filter(Channel.id == channel_id).first()
     if channel:
         channel.subscribed = req.subscribed
         if req.subscribed:
             channel.last_refreshed = None
-        db.commit()
+            db.commit()
+            
+            # Immediately trigger fetch in the background
+            loop = asyncio.get_event_loop()
+            background_tasks.add_task(loop.run_in_executor, None, fetch_and_update_channel, channel_id)
+        else:
+            db.commit()
     return {"status": "success"}
 
 @app.post("/api/download")
@@ -265,7 +271,10 @@ async def start_download(req: DownloadRequest, db: Session = Depends(get_db)):
                 
     if req.type == "thumbnail":
         config['force-thumbnail'] = True
-        
+    elif req.type == "video":
+        # Force download even if the channel is set to 'no-download'
+        config['no-download'] = False
+
     import re
     # Check if the URL points to a single video that is already downloaded
     match = re.search(r"(?:v=|\/|youtu\.be\/|shorts\/|embed\/)([0-9A-Za-z_-]{11})(?:[#\?&]|$)", req.url)
@@ -454,8 +463,15 @@ def fetch_and_update_channel(channel_id: str):
                 vid_url = item.get('url')
                 if vid_id and vid_url:
                     existing = db.query(Video).filter(Video.id == vid_id).first()
-                    if not existing:
-                        existing_task = db.query(DownloadTask).filter(DownloadTask.url == vid_url, DownloadTask.status.in_(["QUEUED", "DOWNLOADING", "COMPLETED"])).first()
+                    
+                    file_exists = False
+                    if existing and existing.file_path:
+                        full_path = os.path.join(DOWNLOADS_DIR, existing.file_path)
+                        if os.path.exists(full_path):
+                            file_exists = True
+
+                    if not file_exists:
+                        existing_task = db.query(DownloadTask).filter(DownloadTask.url == vid_url, DownloadTask.status.in_(["QUEUED", "DOWNLOADING"])).first()
                         if not existing_task:
                             # Pre-create the task record without task_id (we'll update it later or just let Celery create it)
                             # Actually, download_video_task expects to find DownloadTask by task_id.
