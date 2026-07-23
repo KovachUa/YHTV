@@ -1,6 +1,7 @@
 services:
   frontend:
     build: ./frontend
+    image: yhtv-frontend:latest
     container_name: yhtv-frontend
     ports:
       - "127.0.0.1:8080:80"
@@ -9,11 +10,11 @@ services:
     networks:
       - yhtv-net
     volumes:
-      - ./frontend:/usr/share/nginx/html
       - yhtv_downloads:/downloads
 
   backend:
     build: ./backend
+    image: yhtv-backend:latest
     container_name: yhtv-backend
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
@@ -31,27 +32,27 @@ services:
 
   worker:
     build: ./backend
+    image: yhtv-worker:latest
     container_name: yhtv-worker
-    network_mode: "host"
     command: celery -A celery_app worker --loglevel=info --concurrency=4
     volumes:
       - yhtv_downloads:/downloads
     environment:
-      - REDIS_URL=redis://:yhtv_secure_pass_2026@127.0.0.1:6379/0
-      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@127.0.0.1:5433/yhtv
+      - REDIS_URL=redis://:yhtv_secure_pass_2026@redis:6379/0
+      - DATABASE_URL=postgresql://yhtv:yhtv_db_pass_2026@db:5432/yhtv
     depends_on:
       redis:
         condition: service_healthy
       db:
         condition: service_healthy
+    networks:
+      - yhtv-net
 
   redis:
     image: redis:7-alpine
     container_name: yhtv-redis
     command: redis-server --requirepass yhtv_secure_pass_2026
     ports:
-      # Expose Redis locally so external workers can connect if needed.
-      # Protected by the requirepass above!
       - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "yhtv_secure_pass_2026", "ping"]
@@ -71,7 +72,7 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
-      - yhtv_pgdata:/var/lib/postgresql/data
+      - /opt/yhtv/pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U yhtv -d yhtv"]
       interval: 5s
@@ -90,5 +91,4 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: ./yhtv_downloads
-  yhtv_pgdata:
+      device: /opt/yhtv/downloads

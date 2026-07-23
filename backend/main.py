@@ -7,8 +7,11 @@ import json
 import os
 import time
 import asyncio
+import logging
 import yt_dlp
 import datetime
+
+logger = logging.getLogger(__name__)
 
 from database import init_db, get_db, SessionLocal
 from models import Video, Channel, DownloadTask
@@ -83,7 +86,7 @@ def perform_cleanup():
                         deleted_files.append(dirpath)
                     except: pass
     except Exception as e:
-        print(f"Cleanup error: {e}")
+        logger.error(f"Cleanup error: {e}")
     return deleted_files
 
 async def cleanup_worker():
@@ -100,10 +103,10 @@ async def channel_refresh_worker():
             interval_hours = float(config.get("auto-refresh-interval", 1.0))
             
             db = SessionLocal()
-            time_ago = datetime.datetime.utcnow() - datetime.timedelta(hours=interval_hours)
+            time_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=interval_hours)
             channel = db.query(Channel).filter(
                 Channel.subscribed == True,
-                (Channel.last_refreshed < time_ago) | (Channel.last_refreshed == None)
+                (Channel.last_refreshed < time_ago) | (Channel.last_refreshed.is_(None))
             ).order_by(Channel.last_refreshed.asc()).first()
             
             channel_id = channel.id if channel else None
@@ -115,7 +118,8 @@ async def channel_refresh_worker():
                 await asyncio.sleep(60) # Stagger updates by 60 seconds
             else:
                 await asyncio.sleep(600) # Check every 10 minutes if no channels need update
-        except Exception:
+        except Exception as e:
+            logger.error(f"Channel refresh worker error: {e}")
             await asyncio.sleep(60)
 
 @app.on_event("startup")
@@ -219,6 +223,8 @@ async def add_channel_only(req: ChannelAddRequest, db: Session = Depends(get_db)
 
             if not channel_id or not channel_name:
                 return JSONResponse(status_code=400, content={"message": "Could not extract channel metadata from the URL."})
+            
+            logger.info(f"Adding channel: {channel_name} ({channel_id})")
                 
             db_channel = db.query(Channel).filter(Channel.id == channel_id).first()
             if not db_channel:
@@ -238,6 +244,7 @@ async def add_channel_only(req: ChannelAddRequest, db: Session = Depends(get_db)
             db.commit()
             return {"status": "success", "channel_id": channel_id, "name": channel_name}
     except Exception as e:
+        logger.error(f"Error adding channel: {e}")
         return JSONResponse(status_code=500, content={"message": f"Error: {str(e)}"})
 
 @app.post("/api/channels/{channel_id}/subscribe")
@@ -267,7 +274,7 @@ async def start_download(req: DownloadRequest, db: Session = Depends(get_db)):
                 ch_settings = json.loads(channel.settings)
                 config.update(ch_settings)
             except Exception as e:
-                print("Error loading channel settings:", e)
+                logger.warning(f"Error loading channel settings: {e}")
                 
     if req.type == "thumbnail":
         config['force-thumbnail'] = True
@@ -495,7 +502,7 @@ def fetch_and_update_channel(channel_id: str):
             "streams": streams
         }
         channel.browse_data = json.dumps(result)
-        channel.last_refreshed = datetime.datetime.utcnow()
+        channel.last_refreshed = datetime.datetime.now(datetime.timezone.utc)
         db.commit()
         return result
     finally:
@@ -507,7 +514,7 @@ async def browse_channel(channel_id: str, db: Session = Depends(get_db)):
     if not channel:
         return JSONResponse(status_code=404, content={"message": "Channel not found"})
         
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     if channel.browse_data and channel.last_refreshed and (now - channel.last_refreshed).total_seconds() < 3600:
         try:
             return json.loads(channel.browse_data)

@@ -17,4 +17,5 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    result_expires=3600,  # Автоматично видаляти результати тасків через 1 годину
 )

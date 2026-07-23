@@ -19,7 +19,7 @@ def download_video_task(self, url: str, config: dict):
     db_task = db.query(DownloadTask).filter(DownloadTask.task_id == task_id).first()
     if db_task:
         db_task.status = 'DOWNLOADING'
-        db_task.updated_at = datetime.datetime.utcnow()
+        db_task.updated_at = datetime.datetime.now(datetime.timezone.utc)
         db.commit()
 
     self.update_state(state='PROGRESS', meta={'progress': 0, 'status': 'Starting download...'})
@@ -48,7 +48,7 @@ def download_video_task(self, url: str, config: dict):
                         db_task.progress = progress
                         db_task.speed = speed
                         db_task.eta = eta
-                        db_task.updated_at = datetime.datetime.utcnow()
+                        db_task.updated_at = datetime.datetime.now(datetime.timezone.utc)
                         db.commit()
                     last_db_update = time.time()
             except Exception as e:
@@ -156,7 +156,7 @@ def download_video_task(self, url: str, config: dict):
             db_task.status = 'COMPLETED'
             db_task.title = title
             db_task.progress = 100.0
-            db_task.updated_at = datetime.datetime.utcnow()
+            db_task.updated_at = datetime.datetime.now(datetime.timezone.utc)
             
         db_channel = db.query(Channel).filter(Channel.id == channel_id).first()
         if not db_channel:
@@ -199,7 +199,7 @@ def download_video_task(self, url: str, config: dict):
         if db_task:
             db_task.status = 'ERROR'
             db_task.error_message = str(e)
-            db_task.updated_at = datetime.datetime.utcnow()
+            db_task.updated_at = datetime.datetime.now(datetime.timezone.utc)
             db.commit()
         raise Exception(str(e))
     finally:
